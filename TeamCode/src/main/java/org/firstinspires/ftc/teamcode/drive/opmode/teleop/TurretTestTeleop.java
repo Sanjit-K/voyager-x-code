@@ -8,8 +8,6 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
-import org.firstinspires.ftc.teamcode.pedroPathing.constants.FConstants;
-import org.firstinspires.ftc.teamcode.pedroPathing.constants.LConstants;
 import org.firstinspires.ftc.teamcode.turret.LaunchMotor;
 import org.firstinspires.ftc.teamcode.turret.TurretConstants;
 import org.firstinspires.ftc.teamcode.turret.YawServo;
