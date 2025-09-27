@@ -10,6 +10,9 @@ import com.pedropathing.paths.Path;
 import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.CRServo;
+import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import java.util.function.Supplier;
 
@@ -23,6 +26,10 @@ public class ExampleTeleOp extends OpMode {
     private TelemetryManager telemetryM;
     private boolean slowMode = false;
     private double slowModeMultiplier = 0.5;
+    private CRServo servo1, servo2, servo3, servo4;
+    private final double power = 1.0;
+
+
 
     @Override
     public void init() {
@@ -35,6 +42,13 @@ public class ExampleTeleOp extends OpMode {
                 .addPath(new Path(new BezierLine(follower::getPose, new Pose(45, 98))))
                 .setHeadingInterpolation(HeadingInterpolator.linearFromPoint(follower::getHeading, Math.toRadians(45), 0.8))
                 .build();
+
+        servo1 = hardwareMap.get(CRServo.class, "servo1");
+        servo2 = hardwareMap.get(CRServo.class, "servo2");
+        servo3 = hardwareMap.get(CRServo.class, "servo3");
+        servo4 = hardwareMap.get(CRServo.class, "servo4");
+
+
     }
 
     @Override
@@ -98,6 +112,12 @@ public class ExampleTeleOp extends OpMode {
         if (gamepad2.yWasPressed()) {
             slowModeMultiplier -= 0.25;
         }
+
+
+        servo1.setPower(power);
+        servo2.setPower(-power);
+        servo3.setPower(power);
+        servo4.setPower(-power);
 
         telemetryM.debug("position", follower.getPose());
         telemetryM.debug("velocity", follower.getVelocity());

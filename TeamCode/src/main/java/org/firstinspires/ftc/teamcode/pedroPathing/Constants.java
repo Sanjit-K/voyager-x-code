@@ -34,7 +34,7 @@ public class Constants {
             .rightRearMotorDirection(DcMotorSimple.Direction.FORWARD)
             .xVelocity(82.6)
             .yVelocity(68.92)
-            .useBrakeModeInTeleOp(false);
+            .useBrakeModeInTeleOp(true);
 
     public static ThreeWheelIMUConstants localizerConstants = new ThreeWheelIMUConstants()
             .forwardTicksToInches(0.001985)
