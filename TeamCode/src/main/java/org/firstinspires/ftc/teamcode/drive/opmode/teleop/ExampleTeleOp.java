@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.pedroPathing;
+package org.firstinspires.ftc.teamcode.drive.opmode.teleop;
 import com.bylazar.configurables.annotations.Configurable;
 import com.bylazar.telemetry.PanelsTelemetry;
 import com.bylazar.telemetry.TelemetryManager;
@@ -11,8 +11,12 @@ import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.CRServo;
-import com.qualcomm.robotcore.hardware.Servo;
-import com.qualcomm.robotcore.util.ElapsedTime;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+
+import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.turret.YawServo;
+import org.firstinspires.ftc.teamcode.turret.TurretConstants;
 
 import java.util.function.Supplier;
 
@@ -20,14 +24,21 @@ import java.util.function.Supplier;
 @TeleOp
 public class ExampleTeleOp extends OpMode {
     private Follower follower;
-    public static Pose startingPose; //See ExampleAuto to understand how to use this
+    public static Pose startingPose = new Pose(72, 9, Math.toRadians(90));
     private boolean automatedDrive;
     private Supplier<PathChain> pathChain;
     private TelemetryManager telemetryM;
     private boolean slowMode = false;
     private double slowModeMultiplier = 0.5;
     private CRServo servo1, servo2, servo3, servo4;
-    private final double power = 1.0;
+    private DcMotorEx motorL, motorR;
+    private final double servoPower = 1.0;
+    private double turretPower = 0.5;
+    private boolean turretSpinning = false;
+
+    // Turret helpers
+    private YawServo yawServo;
+    private TurretConstants turretConstants;
 
 
 
@@ -48,7 +59,21 @@ public class ExampleTeleOp extends OpMode {
         servo3 = hardwareMap.get(CRServo.class, "servo3");
         servo4 = hardwareMap.get(CRServo.class, "servo4");
 
+        motorL = hardwareMap.get(DcMotorEx.class, "turretL");
+        motorR = hardwareMap.get(DcMotorEx.class, "turretR");
 
+        motorL.setDirection(DcMotorSimple.Direction.FORWARD);
+        motorR.setDirection(DcMotorSimple.Direction.REVERSE);
+
+        // Turret initialization
+        turretConstants = new TurretConstants();
+        // Assumption: yaw servo is named "yawServo" in hardware map. Change name if different.
+        try {
+            yawServo = new YawServo(hardwareMap, follower, "yawServo", false);
+        } catch (Exception e) {
+            // If the hardware map doesn't contain the servo name, yawServo will remain null; telemetry will show this.
+            yawServo = null;
+        }
     }
 
     @Override
@@ -63,7 +88,17 @@ public class ExampleTeleOp extends OpMode {
     public void loop() {
         //Call this once per loop
         follower.update();
-        telemetryM.update();
+
+        // Update turret constants with current robot pose (field inches)
+        turretConstants.setRobotPose(follower.getPose().getX(), follower.getPose().getY());
+        turretConstants.update();
+
+        // Update yaw servo to point at configured field goal
+        if (yawServo != null) {
+            yawServo.aimAt(TurretConstants.X0, TurretConstants.Y0);
+        }
+
+        telemetryM.update(telemetry);
 
         if (!automatedDrive) {
             //Make the last parameter false for field-centric
@@ -113,14 +148,37 @@ public class ExampleTeleOp extends OpMode {
             slowModeMultiplier -= 0.25;
         }
 
+        if (gamepad1.leftBumperWasPressed()) {
+            turretSpinning = !turretSpinning;
+        }
 
-        servo1.setPower(power);
-        servo2.setPower(-power);
-        servo3.setPower(power);
-        servo4.setPower(-power);
+        if (turretSpinning) {
+            motorL.setPower(turretPower);
+            motorR.setPower(turretPower);
+        } else {
+            motorL.setPower(0);
+            motorR.setPower(0);
+        }
+
+        if (gamepad1.dpadUpWasPressed()) {
+            turretPower = Math.min(turretPower + 0.05, 1.0);
+        }
+        if (gamepad1.dpadDownWasPressed()) {
+            turretPower = Math.max(turretPower - 0.05, 0.0);
+        }
+
+        // Continuous servos - user previously wanted these to run; left as always-on. If you want them toggled, we can change.
+        servo1.setPower(servoPower);
+        servo2.setPower(-servoPower);
+        servo3.setPower(servoPower);
+        servo4.setPower(-servoPower);
 
         telemetryM.debug("position", follower.getPose());
         telemetryM.debug("velocity", follower.getVelocity());
         telemetryM.debug("automatedDrive", automatedDrive);
+        telemetryM.debug("Turret Power", turretPower);
+        telemetryM.debug("Goal Bearing (deg)", turretConstants.getBearingDeg());
+        telemetryM.debug("Distance to Goal", turretConstants.getDistance());
+        telemetryM.debug("Target RPM (est)", turretConstants.getTargetRPM());
     }
 }
