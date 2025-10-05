@@ -45,9 +45,8 @@ public class ExampleTeleOp extends OpMode {
     @Override
     public void init() {
         follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(startingPose == null ? new Pose() : startingPose);
-        follower.update();
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
+        follower.setStartingPose(startingPose);
 
         pathChain = () -> follower.pathBuilder() //Lazy Curve Generation
                 .addPath(new Path(new BezierLine(follower::getPose, new Pose(45, 98))))
@@ -122,13 +121,13 @@ public class ExampleTeleOp extends OpMode {
         }
 
         //Automated PathFollowing
-        if (gamepad1.aWasPressed()) {
+        if (gamepad1.bWasPressed()) {
             follower.followPath(pathChain.get());
             automatedDrive = true;
         }
 
         //Stop automated following if the follower is done
-        if (automatedDrive && (gamepad1.bWasPressed() || !follower.isBusy())) {
+        if (automatedDrive && (gamepad1.aWasPressed() || !follower.isBusy())) {
             follower.startTeleopDrive();
             automatedDrive = false;
         }
