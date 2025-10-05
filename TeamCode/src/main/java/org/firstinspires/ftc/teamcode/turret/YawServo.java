@@ -56,18 +56,29 @@ public class YawServo {
 
         double errorDeg = Math.toDegrees(angleError);
 
-        // Clip to servo limits and map to 0..1
-        double targetAngle = Range.clip(errorDeg, YAW_MIN_DEG, YAW_MAX_DEG);
-        double normalized  = (targetAngle - YAW_MIN_DEG) / (YAW_MAX_DEG - YAW_MIN_DEG);
-        double servoPos    = SERVO_MIN_POS + normalized * (SERVO_MAX_POS - SERVO_MIN_POS);
+        // Add 180° offset since servo position 0.5 corresponds to 180°, not 0°
+        double adjustedAngle = errorDeg + 180.0;
+
+        // Normalize adjusted angle to 0-360 range
+        while (adjustedAngle >= 360.0) adjustedAngle -= 360.0;
+        while (adjustedAngle < 0.0) adjustedAngle += 360.0;
+
+        // Map to your servo's range (assuming 0.5 = 180°, adjust YAW_MIN/MAX accordingly)
+        // If your servo range is -120° to +120°, then 180° offset means:
+        // Servo range is actually 60° to 300°
+        double servoMinAngle = 60.0;  // YAW_MIN_DEG + 180
+        double servoMaxAngle = 300.0; // YAW_MAX_DEG + 180
+
+        // Clip to servo limits
+        double targetAngle = Range.clip(adjustedAngle, servoMinAngle, servoMaxAngle);
+
+        // Map to servo position (0.1 to 0.9)
+        double normalized = (targetAngle - servoMinAngle) / (servoMaxAngle - servoMinAngle);
+        double servoPos = SERVO_MIN_POS + normalized * (SERVO_MAX_POS - SERVO_MIN_POS);
 
         servo.setPosition(Range.clip(servoPos, 0.0, 1.0));
     }
 
-    /**
-     * Aim using bottom-left-origin field inches (0..144).
-     * Handy when your targets come from field drawings or simple constants.
-     */
     public void aimAtFieldBL(double blX, double blY) {
         aimAt(toFollowerX(blX), toFollowerY(blY));
     }
