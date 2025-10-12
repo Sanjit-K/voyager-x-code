@@ -15,8 +15,10 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.turret.AprilTagScanner;
 import org.firstinspires.ftc.teamcode.turret.YawServo;
 import org.firstinspires.ftc.teamcode.turret.TurretConstants;
+import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
 import java.util.function.Supplier;
 
@@ -39,6 +41,7 @@ public class ExampleTeleOp extends OpMode {
     // Turret helpers
     private YawServo yawServo;
     private TurretConstants turretConstants;
+    private AprilTagScanner aprilTagScanner;
 
 
 
@@ -73,6 +76,16 @@ public class ExampleTeleOp extends OpMode {
             // If the hardware map doesn't contain the servo name, yawServo will remain null; telemetry will show this.
             yawServo = null;
         }
+
+        // Initialize AprilTag scanner
+        // Change "Webcam 1" to match your webcam name in the hardware configuration
+        try {
+            aprilTagScanner = new AprilTagScanner(hardwareMap, "Webcam 1");
+            telemetryM.debug("AprilTag Scanner", "Initialized");
+        } catch (Exception e) {
+            aprilTagScanner = null;
+            telemetryM.debug("AprilTag Scanner", "Failed to initialize: " + e.getMessage());
+        }
     }
 
     @Override
@@ -97,7 +110,37 @@ public class ExampleTeleOp extends OpMode {
             yawServo.aimAt(TurretConstants.X0, TurretConstants.Y0);
         }
 
-        telemetryM.update(telemetry);
+        // AprilTag scanning and telemetry
+        if (aprilTagScanner != null) {
+            telemetryM.debug("AprilTags Detected", aprilTagScanner.getDetectionCount());
+
+            // Debug: Show what IDs are actually being detected
+            for (AprilTagDetection detection : aprilTagScanner.getDetections()) {
+                telemetryM.debug("DEBUG Detected ID", detection.id);
+                telemetryM.debug("  Decision Margin", String.format("%.1f", detection.decisionMargin));
+                telemetryM.debug("  Hamming Distance", detection.hamming);
+                telemetryM.debug("  Range", String.format("%.1f inches", detection.ftcPose.range));
+                telemetryM.debug("  Bearing", String.format("%.0f degrees", Math.toDegrees(detection.ftcPose.bearing)));
+                telemetryM.debug("  Yaw", String.format("%.0f degrees", Math.toDegrees(detection.ftcPose.yaw)));
+                telemetryM.debug("  X", String.format("%.1f inches", detection.ftcPose.x));
+                telemetryM.debug("  Y", String.format("%.1f inches", detection.ftcPose.y));
+                telemetryM.debug("  Z", String.format("%.1f inches", detection.ftcPose.z));
+
+                // If the tag has metadata (name), display it
+                if (detection.metadata != null) {
+                    telemetryM.debug("  Tag Name", detection.metadata.name);
+                } else {
+                    telemetryM.debug("  Tag Name", "UNKNOWN - Not in FTC library!");
+                }
+            }
+
+            // Show if no tags detected
+            if (aprilTagScanner.getDetectionCount() == 0) {
+                telemetryM.debug("Camera Status", "No AprilTags visible");
+            }
+        } else {
+            telemetryM.debug("AprilTag Scanner", "NOT INITIALIZED");
+        }
 
         if (!automatedDrive) {
             //Make the last parameter false for field-centric
@@ -179,5 +222,8 @@ public class ExampleTeleOp extends OpMode {
         telemetryM.debug("Goal Bearing (deg)", turretConstants.getBearingDeg());
         telemetryM.debug("Distance to Goal", turretConstants.getDistance());
         telemetryM.debug("Target RPM (est)", turretConstants.getTargetRPM());
+
+        // Update telemetry at the very end so all data is displayed
+        telemetryM.update(telemetry);
     }
 }
