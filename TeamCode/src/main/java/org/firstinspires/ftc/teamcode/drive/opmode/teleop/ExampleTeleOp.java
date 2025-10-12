@@ -43,7 +43,9 @@ public class ExampleTeleOp extends OpMode {
     private TurretConstants turretConstants;
     private AprilTagScanner aprilTagScanner;
 
-
+    // Camera exposure settings (adjustable)
+    private int cameraExposure = 6;  // milliseconds (1-100)
+    private int cameraGain = 250;     // ISO gain (0-255)
 
     @Override
     public void init() {
@@ -215,6 +217,26 @@ public class ExampleTeleOp extends OpMode {
         servo3.setPower(servoPower);
         servo4.setPower(-servoPower);
 
+        // Camera exposure and gain adjustment
+        if (gamepad2.dpad_left) {
+            cameraExposure = Math.max(cameraExposure - 1, 1);
+        }
+        if (gamepad2.dpad_right) {
+            cameraExposure = Math.min(cameraExposure + 1, 100);
+        }
+        if (gamepad2.dpad_up) {
+            cameraGain = Math.min(cameraGain + 5, 255);
+        }
+        if (gamepad2.dpad_down) {
+            cameraGain = Math.max(cameraGain - 5, 0);
+        }
+
+        // Apply camera settings
+        if (aprilTagScanner != null) {
+            aprilTagScanner.setCameraExposure(cameraExposure);
+            aprilTagScanner.setCameraGain(cameraGain);
+        }
+
         telemetryM.debug("position", follower.getPose());
         telemetryM.debug("velocity", follower.getVelocity());
         telemetryM.debug("automatedDrive", automatedDrive);
@@ -222,6 +244,10 @@ public class ExampleTeleOp extends OpMode {
         telemetryM.debug("Goal Bearing (deg)", turretConstants.getBearingDeg());
         telemetryM.debug("Distance to Goal", turretConstants.getDistance());
         telemetryM.debug("Target RPM (est)", turretConstants.getTargetRPM());
+        telemetryM.debug("Camera Exposure (ms)", cameraExposure);
+        telemetryM.debug("Camera Gain (ISO)", cameraGain);
+        telemetryM.debug("Camera FPS", aprilTagScanner.getCameraFPS());
+        telemetryM.debug("Camera State", aprilTagScanner.getCameraState());
 
         // Update telemetry at the very end so all data is displayed
         telemetryM.update(telemetry);
