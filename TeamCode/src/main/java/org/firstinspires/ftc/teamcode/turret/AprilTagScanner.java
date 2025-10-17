@@ -19,7 +19,7 @@ public class AprilTagScanner {
 
     private final AprilTagProcessor aprilTag;
     private final VisionPortal visionPortal;
-    private static final double MIN_DECISION_MARGIN = 100.0; // Minimum confidence threshold
+    private static final double MIN_DECISION_MARGIN = 0; // Minimum confidence threshold
 
     /**
      * Initialize the AprilTag scanner with optimized settings.
@@ -34,14 +34,14 @@ public class AprilTagScanner {
                 .setDrawCubeProjection(true)
                 .setDrawTagOutline(true)
                 .setTagFamily(AprilTagProcessor.TagFamily.TAG_36h11) // Standard FTC tags
-                .setLensIntrinsics(822.317, 822.317, 319.495, 242.502) // Official C270 calibration (Noah Andrews, FTC)
+                .setLensIntrinsics(1385.92f , 1385.92f, 951.982f , 534.084f) // Official C920 calibration (Robert Atkinson, FTC)
                 .build();
 
-        // Build the vision portal optimized for C270
+        // Build the vision portal optimized for C920
         visionPortal = new VisionPortal.Builder()
                 .setCamera(hardwareMap.get(WebcamName.class, webcamName))
                 .addProcessor(aprilTag)
-                .setCameraResolution(new android.util.Size(640, 480)) // C270 works best at 640x480
+                .setCameraResolution(new android.util.Size(1920, 1080)) // C920 calibrated for 640x480
                 .setStreamFormat(VisionPortal.StreamFormat.MJPEG) // Better performance
                 .enableLiveView(true)
                 .setAutoStopLiveView(false)
@@ -58,33 +58,8 @@ public class AprilTagScanner {
         }
 
         // Set manual exposure for better AprilTag detection
-        setManualExposure(6, 250); // Good starting values
     }
 
-    /**
-     * Set manual camera exposure and gain for better detection in varying lighting.
-     * @param exposureMS Exposure time in milliseconds (1-100, start with 6)
-     * @param gain ISO gain (0-255, start with 250)
-     */
-    public void setManualExposure(int exposureMS, int gain) {
-        if (visionPortal.getCameraState() != VisionPortal.CameraState.STREAMING) {
-            return;
-        }
-
-        ExposureControl exposureControl = visionPortal.getCameraControl(ExposureControl.class);
-        if (exposureControl.getMode() != ExposureControl.Mode.Manual) {
-            exposureControl.setMode(ExposureControl.Mode.Manual);
-            try {
-                Thread.sleep(50);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
-        exposureControl.setExposure(exposureMS, TimeUnit.MILLISECONDS);
-
-        GainControl gainControl = visionPortal.getCameraControl(GainControl.class);
-        gainControl.setGain(gain);
-    }
 
     /**
      * Get all currently detected AprilTags that meet the minimum confidence threshold.

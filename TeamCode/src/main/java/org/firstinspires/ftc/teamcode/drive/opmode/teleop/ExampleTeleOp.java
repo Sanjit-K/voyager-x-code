@@ -121,13 +121,6 @@ public class ExampleTeleOp extends OpMode {
                 telemetryM.debug("DEBUG Detected ID", detection.id);
                 telemetryM.debug("  Decision Margin", String.format("%.1f", detection.decisionMargin));
                 telemetryM.debug("  Hamming Distance", detection.hamming);
-                telemetryM.debug("  Range", String.format("%.1f inches", detection.ftcPose.range));
-                telemetryM.debug("  Bearing", String.format("%.0f degrees", Math.toDegrees(detection.ftcPose.bearing)));
-                telemetryM.debug("  Yaw", String.format("%.0f degrees", Math.toDegrees(detection.ftcPose.yaw)));
-                telemetryM.debug("  X", String.format("%.1f inches", detection.ftcPose.x));
-                telemetryM.debug("  Y", String.format("%.1f inches", detection.ftcPose.y));
-                telemetryM.debug("  Z", String.format("%.1f inches", detection.ftcPose.z));
-
                 // If the tag has metadata (name), display it
                 if (detection.metadata != null) {
                     telemetryM.debug("  Tag Name", detection.metadata.name);
@@ -244,10 +237,7 @@ public class ExampleTeleOp extends OpMode {
         telemetryM.debug("Goal Bearing (deg)", turretConstants.getBearingDeg());
         telemetryM.debug("Distance to Goal", turretConstants.getDistance());
         telemetryM.debug("Target RPM (est)", turretConstants.getTargetRPM());
-        telemetryM.debug("Camera Exposure (ms)", cameraExposure);
-        telemetryM.debug("Camera Gain (ISO)", cameraGain);
-        telemetryM.debug("Camera FPS", aprilTagScanner.getCameraFPS());
-        telemetryM.debug("Camera State", aprilTagScanner.getCameraState());
+
 
         // Update telemetry at the very end so all data is displayed
         telemetryM.update(telemetry);
