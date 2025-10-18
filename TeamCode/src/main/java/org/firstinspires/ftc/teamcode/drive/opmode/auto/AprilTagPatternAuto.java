@@ -53,6 +53,7 @@ import java.util.function.Supplier;
 public class AprilTagPatternAuto extends LinearOpMode {
     // Initialize elapsed timer
     private final ElapsedTime runtime = new ElapsedTime();
+    private final ElapsedTime afterscan = new ElapsedTime();
 
     // Initialize poses
     private final Pose startPose = new Pose(63, 33, Math.toRadians(180)); // Start Pose of our robot.
@@ -63,11 +64,8 @@ public class AprilTagPatternAuto extends LinearOpMode {
 
     // Initialize variables for paths
     private PathChain grabPPG;
-    private PathChain scorePPG;
     private PathChain grabPGP;
-    private PathChain scorePGP;
     private PathChain grabGPP;
-    private PathChain scoreGPP;
 
     //set April Tag values to specific patterns
     private static final int PPG_TAG_ID = 23;
@@ -79,8 +77,6 @@ public class AprilTagPatternAuto extends LinearOpMode {
 
     // Other variables
     private DcMotorEx motorL, motorR;
-    private double turretPower = 0.5;
-    private boolean turretSpinning = false;
 
     // Intake servos
     private IntakeServos intakeServos;
@@ -155,9 +151,6 @@ public class AprilTagPatternAuto extends LinearOpMode {
         intakeServos = new IntakeServos(hardwareMap, "servo1", "servo2", "servo3", "servo4", "servo5", "servo6", "servo7", "servo8");
         launchServos = new LaunchServos(hardwareMap, "servoL", "servoR");
         launchMotors = new LaunchMotors(hardwareMap, follower, "turretL", "turretR");
-        launchMotors.set(0.75);
-        intakeServos.enableAllIntake();
-        launchServos.enable();
 
         // Log completed initialization to Panels and driver station (custom log function)
         log("Status", "Initialized");
@@ -192,18 +185,21 @@ public class AprilTagPatternAuto extends LinearOpMode {
                             // call lines for the PPG pattern
                             buildPathsPPG();
                             foundID = PPG_TAG_ID;
+                            afterscan.reset(); // Reset timer once when tag is detected
                             log("Detected Tag", "PPG (23)");
                             break;  // don't look any further.
                         } else if (detection.id == PGP_TAG_ID) {
                             // call lines for the PGP pattern
                             buildPathsPGP();
                             foundID = PGP_TAG_ID;
+                            afterscan.reset(); // Reset timer once when tag is detected
                             log("Detected Tag", "PGP (22)");
                             break;  // don't look any further.
                         } else if (detection.id == GPP_TAG_ID) {
                             // call lines for the GPP pattern
                             buildPathsGPP();
                             foundID = GPP_TAG_ID;
+                            afterscan.reset(); // Reset timer once when tag is detected
                             log("Detected Tag", "GPP (21)");
                             break;  // don't look any further.
                         }
@@ -304,12 +300,16 @@ public class AprilTagPatternAuto extends LinearOpMode {
 
                     // Move to the first artifact pickup location from the scoring position
                     intake2();
-                    setpathStatePPG(-1); //set it to -1 so it stops the state machine execution
+                    setpathStatePPG(2); // Go to state 2 to wait for timer
                 }
                 break;
-
-
-
+            case 2:
+                // Wait for timer and disable launch servos
+                if (afterscan.seconds() > 3.75) {
+                    launchServos.disable();
+                    setpathStatePPG(-1); // Stop state machine
+                }
+                break;
         }
     }
 
@@ -326,8 +326,15 @@ public class AprilTagPatternAuto extends LinearOpMode {
                 if (!follower.isBusy()) {
 
                     // Move to the first artifact pickup location from the scoring position
-                    follower.followPath(scorePGP);
-                    setpathStatePGP(-1); // Call the setter for PGP
+                    intake2();
+                    setpathStatePGP(2); // Go to state 2 to wait for timer
+                }
+                break;
+            case 2:
+                // Wait for timer and disable launch servos
+                if (afterscan.seconds() > 2.58) {
+                    launchServos.disable();
+                    setpathStatePGP(-1); // Stop state machine
                 }
                 break;
         }
@@ -346,8 +353,15 @@ public class AprilTagPatternAuto extends LinearOpMode {
                 if (!follower.isBusy()) {
 
                     // Move to the first artifact pickup location from the scoring position
-                    follower.followPath(scoreGPP);
-                    setpathStateGPP(-1); //set it to -1 so it stops the state machine execution
+                    intake2();
+                    setpathStateGPP(2); // Go to state 2 to wait for timer
+                }
+                break;
+            case 2:
+                // Wait for timer and disable launch servos
+                if (afterscan.seconds() > 2.58) {
+                    launchServos.disable();
+                    setpathStateGPP(-1); // Stop state machine
                 }
                 break;
         }
@@ -356,28 +370,55 @@ public class AprilTagPatternAuto extends LinearOpMode {
     public void intake2() {
         switch (foundID) {
             case PPG_TAG_ID:
-                Pose intake1 = new Pose(34, 83.5, Math.toRadians(180));
-
-                // Define slower path constraints for precise intake
-
+                Pose intake1 = new Pose(24, 83.5, Math.toRadians(180));
 
                 // Build the path
+                follower.setMaxPower(0.2);
+
                 PathChain intake1PPG = follower.pathBuilder()
                         .addPath(new BezierLine(PPGPose, intake1))
                         .setLinearHeadingInterpolation(PPGPose.getHeading(), intake1.getHeading())
                         .build();
 
-                follower.setMaxPower(0.3);
                 // Follow the path with slower constraints
                 follower.followPath(intake1PPG);
-
+                intakeServos.enableAllIntake();
+                launchServos.enable();
 
                 break;
             case PGP_TAG_ID:
-                shootArtifacts();
+                Pose intake1PGP = new Pose(24, 59.5, Math.toRadians(180));
+
+                // Build the path
+                follower.setMaxPower(0.3);
+
+                PathChain intake1PGPChain = follower.pathBuilder()
+                        .addPath(new BezierLine(PGPPose, intake1PGP))
+                        .setLinearHeadingInterpolation(PGPPose.getHeading(), intake1PGP.getHeading())
+                        .build();
+
+                // Follow the path with slower constraints
+                follower.followPath(intake1PGPChain);
+                intakeServos.enableAllIntake();
+                launchServos.enable();
+
                 break;
             case GPP_TAG_ID:
-                shootArtifacts();
+                Pose intake1GPP = new Pose(24, 35.5, Math.toRadians(180));
+
+                // Build the path
+                follower.setMaxPower(0.3);
+
+                PathChain intake1GPPChain = follower.pathBuilder()
+                        .addPath(new BezierLine(GPPPose, intake1GPP))
+                        .setLinearHeadingInterpolation(GPPPose.getHeading(), intake1GPP.getHeading())
+                        .build();
+
+                // Follow the path with slower constraints
+                follower.followPath(intake1GPPChain);
+                intakeServos.enableAllIntake();
+                launchServos.enable();
+
                 break;
             default:
                 log("Error", "Unknown pattern: " + foundID);

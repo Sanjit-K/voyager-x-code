@@ -22,4 +22,12 @@ public class LaunchMotors {
         motorRight.setPower(power);
         motorLeft.setPower(power);
     }
+
+    public void enable(){
+        set(1.0);
+    }
+
+    public void disable(){
+        set(0.0);
+    }
 }

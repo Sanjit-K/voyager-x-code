@@ -32,6 +32,9 @@ import com.qualcomm.robotcore.util.Range;
     public void set(double position){
         servo.setPosition(position);
     }
+    public double getPos(){
+        return servo.getPosition();
+    }
 
 
 }

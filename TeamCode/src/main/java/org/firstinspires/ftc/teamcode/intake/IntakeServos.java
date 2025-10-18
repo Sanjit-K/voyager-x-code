@@ -39,11 +39,27 @@ public class IntakeServos {
         this.rightBottomBack = hardwareMap.get(CRServo.class, rightBottomBackName);
         this.rightTopBack = hardwareMap.get(CRServo.class, rightTopBackName);
     }
-
     public void enableFrontIntake() {
         leftBottomFront.setPower(-1.0);
         leftTopFront.setPower(-1.0);
         rightBottomFront.setPower(1.0);
+        rightTopFront.setPower(1.0);
+    }
+    public void enableBottomFrontIntake() {
+        leftBottomFront.setPower(-1.0);
+        rightBottomFront.setPower(1.0);
+    }
+
+    public void disableBottomFrontIntake() {
+        leftBottomFront.setPower(0);
+        rightBottomFront.setPower(0);
+    }
+    public void disableTopFrontIntake() {
+        leftTopFront.setPower(0);
+        rightTopFront.setPower(0);
+    }
+    public void enableTopFrontIntake() {
+        leftTopFront.setPower(-1.0);
         rightTopFront.setPower(1.0);
     }
 
