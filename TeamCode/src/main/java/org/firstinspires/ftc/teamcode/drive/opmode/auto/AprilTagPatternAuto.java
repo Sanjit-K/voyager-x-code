@@ -57,7 +57,6 @@ public class AprilTagPatternAuto extends LinearOpMode {
 
     // Initialize poses
     private final Pose startPose = new Pose(63, 33, Math.toRadians(180)); // Start Pose of our robot.
-    private final Pose scorePose = new Pose(72, 20, Math.toRadians(115)); // Scoring Pose of our robot. It is facing the goal at a 115 degree angle.
     private final Pose PPGPose = new Pose(44, 83.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose PGPPose = new Pose(44, 59.5, Math.toRadians(180)); // Middle (Second Set) of Artifacts from the Spike Mark.
     private final Pose GPPPose = new Pose(44, 35.5, Math.toRadians(180)); // Lowest (Third Set) of Artifacts from the Spike Mark.
@@ -228,6 +227,8 @@ public class AprilTagPatternAuto extends LinearOpMode {
             log("Tags Detected", currentDetections.size());
             if (foundID != -1) {
                 log("Tracking Pattern", foundID == PPG_TAG_ID ? "PPG" : foundID == PGP_TAG_ID ? "PGP" : "GPP");
+                log("State PPG", pathStatePPG);
+                log("Timer", String.format("%.2f", afterscan.seconds()));
             }
             telemetry.update(); // Update the driver station after logging
         }
@@ -290,23 +291,81 @@ public class AprilTagPatternAuto extends LinearOpMode {
     public void updateStateMachinePPG() {
         switch (pathStatePPG) {
             case 0:
-                // Move to the scoring position from the start position
-                follower.followPath(grabPPG);
-                setpathStatePPG(1); // Call the setter method
-                break;
+                PathChain preset = follower.pathBuilder()
+                        .addPath(new BezierLine(startPose, new Pose(60, 33, Math.toRadians(360-42.88))))
+                        .setLinearHeadingInterpolation(startPose.getHeading(), Math.toRadians(360-42.88))
+                        .build();
+                follower.followPath(preset);
+                launchMotors.set(0.65);
+
+                setpathStatePPG(1);
             case 1:
+                if (afterscan.seconds() > 2.0){
+                    // Move to the scoring position from the start position
+                    intakeServos.enableAllIntake();
+                    launchServos.enable();
+                    setpathStatePPG(2); // Call the setter method
+                }
+            case 2:
+                // Move to the scoring position from the start position
+                if (afterscan.seconds() > 4.0) {
+                    follower.followPath(grabPPG);
+                    setpathStatePPG(3); // Call the setter method
+                }
+
+                break;
+            case 3:
                 // Wait until we have passed all path constraints
                 if (!follower.isBusy()) {
 
                     // Move to the first artifact pickup location from the scoring position
                     intake2();
-                    setpathStatePPG(2); // Go to state 2 to wait for timer
+                    setpathStatePPG(4); // Go to state 2 to wait for timer
                 }
                 break;
-            case 2:
+            case 4:
                 // Wait for timer and disable launch servos
-                if (afterscan.seconds() > 3.75) {
+                if (afterscan.seconds() > 7.25) {
                     launchServos.disable();
+                    intakeServos.disableTopFrontIntake();
+                    setpathStatePPG(5);
+                }
+                break;
+
+            case 5:
+                if (!follower.isBusy() && afterscan.seconds() > 8){
+                    shoot();
+                    setpathStatePPG(6);
+                }
+                break;
+            case 6:
+                if (!follower.isBusy() && afterscan.seconds() > 11) {
+                    launchServos.enable();
+                    intakeServos.enableTopFrontIntake();
+                    setpathStatePPG(7);
+                }
+                break;
+            case 7:
+                if (!follower.isBusy() && afterscan.seconds() > 13){
+                    spin();
+                    setpathStatePPG(8);
+                }
+                break;
+            case 8:
+                if (!follower.isBusy()){
+                    intake3rd();
+                    setpathStatePPG(9);
+                }
+                break;
+            case 9:
+                if (!follower.isBusy() && afterscan.seconds() > 19){
+                    shoot3rd();
+                    setpathStatePPG(10);
+                }
+                break;
+            case 10:
+                if (!follower.isBusy() && afterscan.seconds() > 22){
+                    launchServos.enable();
                     setpathStatePPG(-1); // Stop state machine
                 }
                 break;
@@ -367,6 +426,7 @@ public class AprilTagPatternAuto extends LinearOpMode {
         }
     }
 
+
     public void intake2() {
         switch (foundID) {
             case PPG_TAG_ID:
@@ -382,8 +442,9 @@ public class AprilTagPatternAuto extends LinearOpMode {
 
                 // Follow the path with slower constraints
                 follower.followPath(intake1PPG);
-                intakeServos.enableAllIntake();
-                launchServos.enable();
+
+
+                launchMotors.set(0.53);
 
                 break;
             case PGP_TAG_ID:
@@ -424,6 +485,62 @@ public class AprilTagPatternAuto extends LinearOpMode {
                 log("Error", "Unknown pattern: " + foundID);
                 break;
         }
+    }
+
+    public void intake3rd(){
+        switch (foundID){
+            case PPG_TAG_ID:
+                PathChain intake3PPG = follower.pathBuilder()
+                        .addPath(new BezierLine(new Pose (24, 83.5, Math.toRadians(180)), new Pose (15, 83.5, Math.toRadians(180))))
+                        .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                        .build();
+
+                follower.setMaxPower(0.3);
+                follower.followPath(intake3PPG);
+
+                intakeServos.enableAllIntake();
+                launchServos.disable();
+
+                break;
+        }
+    }
+
+    public void shoot(){
+        switch (foundID) {
+            case PPG_TAG_ID:
+                PathChain shootPPG = follower.pathBuilder()
+                        .addPath(new BezierLine(new Pose(24, 83.5, Math.toRadians(180)), new Pose (30, 83.5, Math.toRadians(117+180))))
+                        .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(117+180))
+                        .build();
+
+                follower.setMaxPower(0.7);
+                follower.followPath(shootPPG);
+
+                break;
+            }
+        }
+
+    public void shoot3rd() {
+        switch (foundID) {
+            case PPG_TAG_ID:
+                PathChain shoot3PPG = follower.pathBuilder()
+                        .addPath(new BezierLine(new Pose(15, 83.5, Math.toRadians(180)), new Pose (30, 83.5, Math.toRadians(180+117))))
+                        .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180+117))
+                        .build();
+
+                follower.setMaxPower(0.7);
+                follower.followPath(shoot3PPG);
+
+                break;
+        }
+    }
+
+    public void spin(){
+        PathChain spin = follower.pathBuilder()
+                .addPath(new BezierLine(new Pose (30, 83.5, Math.toRadians(117+180)), new Pose (27, 83.5, Math.toRadians(180))))
+                .setLinearHeadingInterpolation(Math.toRadians(180+117), Math.toRadians(180))
+                .build();
+        follower.followPath(spin);
     }
 
     // Setter methods for pathState variables placed at the class level

@@ -112,4 +112,9 @@ public class IntakeServos {
         enableFrontReject();
         enableBackReject();
     }
+
+    public void enableTopFrontReject() {
+        leftTopFront.setPower(-1.0);
+        rightTopFront.setPower(-1.0);
+    }
 }

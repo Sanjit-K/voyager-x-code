@@ -15,7 +15,7 @@ public class Constants {
 
     public static PathConstraints pathConstraints = new PathConstraints(0.99, 100, 1, 1);
     public static FollowerConstants followerConstants = new FollowerConstants()
-            .mass(9.62)
+            .mass(8.2)
             .forwardZeroPowerAcceleration(-30.186281715490008)
             .lateralZeroPowerAcceleration(-61.8071580)
             .useSecondaryDrivePIDF(true)
