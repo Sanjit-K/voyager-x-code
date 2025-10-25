@@ -26,7 +26,7 @@ import java.util.function.Supplier;
 @TeleOp
 public class ExampleTeleOp extends OpMode {
     private Follower follower;
-    public static Pose startingPose = new Pose(72, 9, Math.toRadians(90));
+    public static Pose startingPose = new Pose(62, 33, Math.toRadians(180));
     private boolean automatedDrive;
     private Supplier<PathChain> pathChain;
     private TelemetryManager telemetryM;
@@ -41,11 +41,7 @@ public class ExampleTeleOp extends OpMode {
     // Turret helpers
     private YawServo yawServo;
     private TurretConstants turretConstants;
-    private AprilTagScanner aprilTagScanner;
 
-    // Camera exposure settings (adjustable)
-    private int cameraExposure = 6;  // milliseconds (1-100)
-    private int cameraGain = 250;     // ISO gain (0-255)
 
     @Override
     public void init() {
@@ -79,15 +75,8 @@ public class ExampleTeleOp extends OpMode {
             yawServo = null;
         }
 
-        // Initialize AprilTag scanner
-        // Change "Webcam 1" to match your webcam name in the hardware configuration
-        try {
-            aprilTagScanner = new AprilTagScanner(hardwareMap, "Webcam 1");
-            telemetryM.debug("AprilTag Scanner", "Initialized");
-        } catch (Exception e) {
-            aprilTagScanner = null;
-            telemetryM.debug("AprilTag Scanner", "Failed to initialize: " + e.getMessage());
-        }
+        yawServo.center();
+
     }
 
     @Override
@@ -112,30 +101,6 @@ public class ExampleTeleOp extends OpMode {
             yawServo.aimAt(TurretConstants.X0, TurretConstants.Y0);
         }
 
-        // AprilTag scanning and telemetry
-        if (aprilTagScanner != null) {
-            telemetryM.debug("AprilTags Detected", aprilTagScanner.getDetectionCount());
-
-            // Debug: Show what IDs are actually being detected
-            for (AprilTagDetection detection : aprilTagScanner.getDetections()) {
-                telemetryM.debug("DEBUG Detected ID", detection.id);
-                telemetryM.debug("  Decision Margin", String.format("%.1f", detection.decisionMargin));
-                telemetryM.debug("  Hamming Distance", detection.hamming);
-                // If the tag has metadata (name), display it
-                if (detection.metadata != null) {
-                    telemetryM.debug("  Tag Name", detection.metadata.name);
-                } else {
-                    telemetryM.debug("  Tag Name", "UNKNOWN - Not in FTC library!");
-                }
-            }
-
-            // Show if no tags detected
-            if (aprilTagScanner.getDetectionCount() == 0) {
-                telemetryM.debug("Camera Status", "No AprilTags visible");
-            }
-        } else {
-            telemetryM.debug("AprilTag Scanner", "NOT INITIALIZED");
-        }
 
         if (!automatedDrive) {
             //Make the last parameter false for field-centric
@@ -146,7 +111,7 @@ public class ExampleTeleOp extends OpMode {
                     -gamepad1.left_stick_y,
                     -gamepad1.left_stick_x,
                     -gamepad1.right_stick_x,
-                    false // Robot Centric
+                    false
             );
 
                 //This is how it looks with slowMode on
@@ -210,26 +175,6 @@ public class ExampleTeleOp extends OpMode {
         servo3.setPower(servoPower);
         servo4.setPower(-servoPower);
 
-        // Camera exposure and gain adjustment
-        if (gamepad2.dpad_left) {
-            cameraExposure = Math.max(cameraExposure - 1, 1);
-        }
-        if (gamepad2.dpad_right) {
-            cameraExposure = Math.min(cameraExposure + 1, 100);
-        }
-        if (gamepad2.dpad_up) {
-            cameraGain = Math.min(cameraGain + 5, 255);
-        }
-        if (gamepad2.dpad_down) {
-            cameraGain = Math.max(cameraGain - 5, 0);
-        }
-
-        // Apply camera settings
-        if (aprilTagScanner != null) {
-            aprilTagScanner.setCameraExposure(cameraExposure);
-            aprilTagScanner.setCameraGain(cameraGain);
-        }
-
         telemetryM.debug("position", follower.getPose());
         telemetryM.debug("velocity", follower.getVelocity());
         telemetryM.debug("automatedDrive", automatedDrive);
@@ -237,6 +182,8 @@ public class ExampleTeleOp extends OpMode {
         telemetryM.debug("Goal Bearing (deg)", turretConstants.getBearingDeg());
         telemetryM.debug("Distance to Goal", turretConstants.getDistance());
         telemetryM.debug("Target RPM (est)", turretConstants.getTargetRPM());
+        telemetryM.debug("Yaw Servo Pos", yawServo != null ? yawServo.getPosition() : "N/A");
+        telemetryM.debug("Servo Degrees", yawServo != null ? yawServo.getCurrAngle() : "N/A");
 
 
         // Update telemetry at the very end so all data is displayed

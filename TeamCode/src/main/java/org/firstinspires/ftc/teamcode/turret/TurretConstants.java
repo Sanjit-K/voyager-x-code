@@ -5,7 +5,7 @@ package org.firstinspires.ftc.teamcode.turret;
  */
 public class TurretConstants {
     // Goal location (field coordinates in inches)
-    public static final double X0 = 144.0; // goal X position
+    public static final double X0 = 0.0    ; // goal X position
     public static final double Y0 = 144.0; // goal Y position
 
     // Robot position (updated from Pedro Pathing)

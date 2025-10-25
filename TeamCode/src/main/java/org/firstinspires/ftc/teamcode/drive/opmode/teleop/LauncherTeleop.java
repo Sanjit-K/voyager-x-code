@@ -198,10 +198,10 @@ public class LauncherTeleop extends OpMode {
         }
 
         if (gamepad1.dpadUpWasPressed()) {
-            turretPower = Math.min(turretPower + 0.05, 1.0);
+            turretPower = Math.min(turretPower + 0.01, 1.0);
         }
         if (gamepad1.dpadDownWasPressed()) {
-            turretPower = Math.max(turretPower - 0.05, 0.0);
+            turretPower = Math.max(turretPower - 0.01, 0.0);
         }
 
 
