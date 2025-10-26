@@ -147,7 +147,15 @@ public class AprilTagPatternAuto extends LinearOpMode {
         aprilTagScanner = new AprilTagScanner(hardwareMap, "Webcam 1");
 
         // Initialize Intake Servos
-        intakeServos = new IntakeServos(hardwareMap, "servo1", "servo2", "servo3", "servo4", "servo5", "servo6", "servo7", "servo8");
+        intakeServos = new IntakeServos(
+                hardwareMap,
+                "leftFront",
+                "barFront",
+                "rightFront",
+                "leftBack",
+                "barBack",
+                "rightBack"
+        );
         launchServos = new LaunchServos(hardwareMap, "servoL", "servoR");
         launchMotors = new LaunchMotors(hardwareMap, follower, "turretL", "turretR");
 
@@ -327,7 +335,7 @@ public class AprilTagPatternAuto extends LinearOpMode {
                 // Wait for timer and disable launch servos
                 if (afterscan.seconds() > 7.25) {
                     launchServos.disable();
-                    intakeServos.disableTopFrontIntake();
+                    intakeServos.disableFrontIntake();
                     setpathStatePPG(5);
                 }
                 break;
@@ -341,7 +349,7 @@ public class AprilTagPatternAuto extends LinearOpMode {
             case 6:
                 if (!follower.isBusy() && afterscan.seconds() > 11) {
                     launchServos.enable();
-                    intakeServos.enableTopFrontIntake();
+                    intakeServos.enableFrontIntake();
                     setpathStatePPG(7);
                 }
                 break;

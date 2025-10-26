@@ -56,7 +56,7 @@ public class BlueTeleOp extends OpMode {
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
         follower.setStartingPose(startingPose);
 
-        intakeServos = new IntakeServos(hardwareMap, "servo1", "servo2", "servo3", "servo4", "servo5", "servo6", "servo7", "servo8");
+        intakeServos = new IntakeServos(hardwareMap, "leftFront", "barFront", "rightFront", "leftBack", "barBack", "rightBack");
         launchServos = new LaunchServos(hardwareMap, "servoL", "servoR");
         launchMotors = new LaunchMotors(hardwareMap, follower, "turretL", "turretR");
 
@@ -117,15 +117,15 @@ public class BlueTeleOp extends OpMode {
             //In case the drivers want to use a "slowMode" you can scale the vectors
             if (gamepad1.bWasPressed()){
                 frontSpinning = toggle(frontSpinning,
-                        intakeServos::enableBottomFrontIntake,
-                        intakeServos::disableBottomFrontIntake
+                        intakeServos::enableFrontBar,
+                        intakeServos::disableFrontBar
                 );
             }
 
             if (gamepad1.aWasPressed()){
                 backSpinning = toggle(backSpinning,
-                        intakeServos::enableTopFrontIntake,
-                        intakeServos::disableTopFrontIntake
+                        intakeServos::enableFrontWheels,
+                        intakeServos::disableFrontWheels
                 );
             }
 

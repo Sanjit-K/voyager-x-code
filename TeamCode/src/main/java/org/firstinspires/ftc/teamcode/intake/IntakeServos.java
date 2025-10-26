@@ -4,98 +4,97 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.CRServo;
 
 public class IntakeServos {
-    private final CRServo leftBottomFront;
-    private final CRServo leftTopFront;
-
-    private final CRServo rightBottomFront;
-    private final CRServo rightTopFront;
-
-
-    private final CRServo leftBottomBack;
-    private final CRServo leftTopBack;
-
-    private final CRServo rightBottomBack;
-    private final CRServo rightTopBack;
+    private final CRServo barFront;
+    private final CRServo leftFront;
+    private final CRServo rightFront;
+    private final CRServo barBack;
+    private final CRServo leftBack;
+    private final CRServo rightBack;
 
 
     public IntakeServos(
             HardwareMap hardwareMap,
-            String leftBottomFrontName,
-            String leftTopFrontName,
-            String rightBottomFrontName,
-            String rightTopFrontName,
-            String leftBottomBackName,
-            String leftTopBackName,
-            String rightBottomBackName,
-            String rightTopBackName
+            String leftFrontName,
+            String barFrontName,
+            String rightFrontName,
+            String leftBackName,
+            String barBackName,
+            String rightBackName
     ) {
-        this.leftBottomFront = hardwareMap.get(CRServo.class, leftBottomFrontName);
-        this.leftTopFront = hardwareMap.get(CRServo.class, leftTopFrontName);
-        this.rightBottomFront = hardwareMap.get(CRServo.class, rightBottomFrontName);
-        this.rightTopFront = hardwareMap.get(CRServo.class, rightTopFrontName);
+        this.barFront = hardwareMap.get(CRServo.class, barFrontName);
+        this.leftFront = hardwareMap.get(CRServo.class, leftFrontName);
 
-        this.leftBottomBack = hardwareMap.get(CRServo.class, leftBottomBackName);
-        this.leftTopBack = hardwareMap.get(CRServo.class, leftTopBackName);
-        this.rightBottomBack = hardwareMap.get(CRServo.class, rightBottomBackName);
-        this.rightTopBack = hardwareMap.get(CRServo.class, rightTopBackName);
+        this.rightFront = hardwareMap.get(CRServo.class, rightFrontName);
+
+        this.barBack = hardwareMap.get(CRServo.class, barBackName);
+        this.leftBack = hardwareMap.get(CRServo.class, leftBackName);
+
+        this.rightBack = hardwareMap.get(CRServo.class, rightBackName);
     }
     public void enableFrontIntake() {
-        leftBottomFront.setPower(-1.0);
-        leftTopFront.setPower(-1.0);
-        rightBottomFront.setPower(1.0);
-        rightTopFront.setPower(1.0);
+        enableFrontBar();
+        enableFrontWheels();
     }
-    public void enableBottomFrontIntake() {
-        leftBottomFront.setPower(-1.0);
-        rightBottomFront.setPower(1.0);
+    public void enableFrontBar() {
+        barFront.setPower(-1.0);
     }
 
-    public void disableBottomFrontIntake() {
-        leftBottomFront.setPower(0);
-        rightBottomFront.setPower(0);
-    }
-    public void disableTopFrontIntake() {
-        leftTopFront.setPower(0);
-        rightTopFront.setPower(0);
-    }
-    public void enableTopFrontIntake() {
-        leftTopFront.setPower(-1.0);
-        rightTopFront.setPower(1.0);
+    public void enableFrontWheels(){
+        leftFront.setPower(-1.0);
+        rightFront.setPower(1.0);
     }
 
+    public void disableFrontBar(){
+        barFront.setPower(0);
+    }
+
+    public void disableFrontWheels(){
+        leftFront.setPower(0);
+        rightFront.setPower(0);
+    }
     public void disableFrontIntake() {
-        leftBottomFront.setPower(0);
-        leftTopFront.setPower(0);
-        rightBottomFront.setPower(0);
-        rightTopFront.setPower(0);
+        disableFrontBar();
+        disableFrontWheels();
+    }
+
+    public void enableBackBar() {
+        barBack.setPower(1.0);
+    }
+
+    public void enableBackWheels(){
+        leftBack.setPower(1.0);
+        rightBack.setPower(-1.0);
+    }
+
+    public void disableBackBar(){
+        barBack.setPower(0);
+    }
+
+    public void disableBackWheels(){
+        leftBack.setPower(0);
+        rightBack.setPower(0);
     }
 
     public void enableBackIntake() {
-        leftBottomBack.setPower(1.0);
-        leftTopBack.setPower(1.0);
-        rightBottomBack.setPower(1.0);
-        rightTopBack.setPower(1.0);
+        enableBackBar();
+        enableBackWheels();
     }
 
     public void disableBackIntake() {
-        leftBottomBack.setPower(0);
-        leftTopBack.setPower(0);
-        rightBottomBack.setPower(0);
-        rightTopBack.setPower(0);
+        disableBackWheels();
+        disableBackBar();
     }
 
     public void enableFrontReject() {
-        leftBottomFront.setPower(-1.0);
-        leftTopFront.setPower(-1.0);
-        rightBottomFront.setPower(-1.0);
-        rightTopFront.setPower(-1.0);
+        barFront.setPower(1.0);
+        leftFront.setPower(1.0);
+        rightFront.setPower(-1.0);
     }
 
     public void enableBackReject() {
-        leftBottomBack.setPower(-1.0);
-        leftTopBack.setPower(-1.0);
-        rightBottomBack.setPower(-1.0);
-        rightTopBack.setPower(-1.0);
+        barBack.setPower(-1.0);
+        leftBack.setPower(-1.0);
+        rightBack.setPower(1.0);
     }
 
     public void disableAll() {
@@ -111,10 +110,5 @@ public class IntakeServos {
     public void enableAllReject() {
         enableFrontReject();
         enableBackReject();
-    }
-
-    public void enableTopFrontReject() {
-        leftTopFront.setPower(-1.0);
-        rightTopFront.setPower(-1.0);
     }
 }
