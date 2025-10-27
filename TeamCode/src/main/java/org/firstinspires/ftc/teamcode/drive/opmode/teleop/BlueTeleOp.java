@@ -56,7 +56,7 @@ public class BlueTeleOp extends OpMode {
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
         follower.setStartingPose(startingPose);
 
-        intakeServos = new IntakeServos(hardwareMap, "leftFront", "barFront", "rightFront", "leftBack", "barBack", "rightBack");
+        intakeServos = new IntakeServos(hardwareMap, "leftForward", "barFront", "rightForward", "leftBack", "barBack", "rightBack");
         launchServos = new LaunchServos(hardwareMap, "servoL", "servoR");
         launchMotors = new LaunchMotors(hardwareMap, follower, "turretL", "turretR");
 
