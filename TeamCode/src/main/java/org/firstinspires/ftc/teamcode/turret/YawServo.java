@@ -17,8 +17,9 @@ public class YawServo {
     // Servo calibration
     // On your robot: servo position 0.5 corresponds to the mechanical 270° of the servo horn,
     // and that orientation equals 0° yaw error (i.e., "straight ahead").
-    private static final double SERVO_CENTER_POS = 0.51; // pos that points the turret forward
-    private static final double SERVO_BACK_POS = 1.0;  // pos that points the turret backward
+    private static final double SERVO_CENTER_POS = 0.3; // pos that points the turret forward
+    private static final double SERVO_BACK_POS = 0.57;  // pos that points the turret backward
+    private static final double SERVO_FRONT_POS = 0.01;
 
     // Mapping degrees to servo position: ±120° yaw corresponds to ±0.5 servo units (0.0..1.0)
     // So total 240° maps to 1.0 servo range -> 1.0 / 240 deg per unit
@@ -73,6 +74,10 @@ public class YawServo {
 
     /** Center the servo at 0° yaw error (forward). */
     public void center() { servo.setPosition(SERVO_CENTER_POS); }
+
+    public void front() {
+        servo.setPosition(SERVO_FRONT_POS);
+    }
 
     public void back() { servo.setPosition(SERVO_BACK_POS); }
 

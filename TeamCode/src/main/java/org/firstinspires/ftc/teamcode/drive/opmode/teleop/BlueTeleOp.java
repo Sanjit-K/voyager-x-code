@@ -7,8 +7,6 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
 import org.firstinspires.ftc.teamcode.intake.IntakeServos;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
@@ -37,10 +35,11 @@ public class BlueTeleOp extends OpMode {
     private LaunchServos launchServos;
     private LaunchMotors launchMotors;
     private RobotHeading robotHeading; // helper to aim at goal
-    private boolean frontSpinning = false;
-    private boolean backSpinning = false;
+    private boolean frontSpinningBar = false;
+    private boolean frontSpinningWheels = false;
+    private boolean backSpinningBar = false;
+    private boolean backSpinningWheels = false;
     private boolean launchServosActive = false;
-    private boolean intakeDirection = true; // true = center/forward, false = back
 
     // Alliance POV offset: 180 = Blue, 0 = Red
     private final double offset = Math.toRadians(180.0);
@@ -102,9 +101,7 @@ public class BlueTeleOp extends OpMode {
 
 
 
-        if (yawServo != null) {
-            yawServo.center();
-        }
+
 
         // Early exit back to teleop when automatedDrive finishes
         if (automatedDrive && !follower.isBusy()) {
@@ -115,35 +112,55 @@ public class BlueTeleOp extends OpMode {
         if (!automatedDrive) {
             //Make the last parameter false for field-centric
             //In case the drivers want to use a "slowMode" you can scale the vectors
-            if (gamepad1.bWasPressed()){
-                frontSpinning = toggle(frontSpinning,
+            if (gamepad1.aWasPressed()){
+                frontSpinningBar = toggle(frontSpinningBar,
                         intakeServos::enableFrontBar,
                         intakeServos::disableFrontBar
                 );
             }
 
-            if (gamepad1.aWasPressed()){
-                backSpinning = toggle(backSpinning,
+            if (gamepad1.leftBumperWasPressed()){
+                frontSpinningWheels = toggle(frontSpinningWheels,
                         intakeServos::enableFrontWheels,
                         intakeServos::disableFrontWheels
                 );
             }
 
-            if (gamepad1.dpadRightWasPressed()){
-                intakeDirection = toggle(intakeDirection,
-                        yawServo::back,
-                        yawServo::center
-                );
+            if (gamepad1.rightBumperWasPressed()){
+                backSpinningWheels = toggle(backSpinningWheels,
+                        intakeServos::enableBackWheels,
+                        intakeServos::disableBackWheels);
             }
 
-            // Toggle launch servos (Right Trigger - simple toggle)
-            if (gamepad1.xWasPressed()) {
+            if(gamepad1.bWasPressed()){
+                backSpinningBar = toggle(backSpinningBar,
+                        intakeServos::enableBackBar,
+                        intakeServos::disableBackBar);
+            }
+
+
+
+            if(gamepad1.dpadDownWasPressed()){
+                yawServo.back();
+            }
+
+            if(gamepad1.dpadUpWasPressed()){
+                yawServo.front();
+            }
+
+            if(gamepad1.dpadRightWasPressed()){
+                yawServo.center();
+            }
+
+            // Toggle launch servos
+            if (gamepad1.leftStickButtonWasPressed()) {
                 launchServosActive = toggle(launchServosActive,
                         launchServos::enable,
                         launchServos::disable
                 );
-
             }
+
+
             follower.setTeleOpDrive(
                     -gamepad1.left_stick_y ,
                     -gamepad1.left_stick_x ,
@@ -154,7 +171,7 @@ public class BlueTeleOp extends OpMode {
 
 
             //Slow Mode
-            if (gamepad1.rightBumperWasPressed()) {
+            if (gamepad1.shareWasPressed()) {
                 if (robotHeading != null) {
                     robotHeading.aimAtGoal();
                     automatedDrive = true; // let follower control until done
@@ -162,7 +179,7 @@ public class BlueTeleOp extends OpMode {
             }
 
             // Turret spin toggle
-            if (gamepad1.leftBumperWasPressed()) {
+            if (gamepad1.optionsWasPressed()) {
                 turretSpinning = toggle(
                         turretSpinning,
                         () -> launchMotors.set(turretPower),
@@ -170,8 +187,39 @@ public class BlueTeleOp extends OpMode {
                 );
             }
 
-            if (gamepad1.dpadUpWasPressed()) turretPower = Math.min(turretPower + 0.05, 1.0);
-            if (gamepad1.dpadDownWasPressed()) turretPower = Math.max(turretPower - 0.05, 0.0);
+            // Bump turret power up/down
+            if (gamepad1.xWasPressed()) turretPower = Math.min(turretPower + 0.05, 1.0);
+            if (gamepad1.yWasPressed()) turretPower = Math.max(turretPower - 0.05, 0.0);
+
+            // >>> NEW: if we’re spinning, immediately apply the updated power
+            if (turretSpinning) {
+                launchMotors.set(turretPower);
+            }
+
+            // --- Gamepad2 slow creep for intake wheels (while held) ---
+            boolean frontSlowHeld = gamepad2.a;
+            boolean backSlowHeld  = gamepad2.b;
+
+// Front wheels slow creep
+            if (frontSlowHeld) {
+                intakeServos.enableFrontWheelsSlow();
+            } else {
+                // restore prior state (based on your existing toggle)
+                if (frontSpinningWheels) intakeServos.enableFrontWheels();
+                else                     intakeServos.disableFrontWheels();
+            }
+
+// Back wheels slow creep
+            if (backSlowHeld) {
+                intakeServos.enableBackWheelsSlow();
+            } else {
+                // restore prior state (based on your existing toggle)
+                if (backSpinningWheels) intakeServos.enableBackWheels();
+                else                    intakeServos.disableBackWheels();
+            }
+
+
+
 
             // Telemetry
             telemetryM.debug("position", follower.getPose());
@@ -195,13 +243,9 @@ public class BlueTeleOp extends OpMode {
             // Use detection in place of purple/green logic
             if (detected && gamepad1.left_trigger < 0.5){
                 launchServos.disable();
-            } else {
-                launchServos.enable();
+                launchServosActive = false;
             }
 
-            if (detected && gamepad1.left_trigger > 0.5){
-                launchServos.enable();
-            }
             telemetryM.debug("Brightness(0-255)", brightness);
             telemetryM.debug("Detected", detected);
 

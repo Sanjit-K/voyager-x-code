@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.intake;
 
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.CRServo;
 
@@ -10,6 +11,8 @@ public class IntakeServos {
     private final CRServo barBack;
     private final CRServo leftBack;
     private final CRServo rightBack;
+    private static final double SLOW_WHEEL_POWER = 0.10;
+
 
 
     public IntakeServos(
@@ -27,10 +30,27 @@ public class IntakeServos {
         this.rightFront = hardwareMap.get(CRServo.class, rightFrontName);
 
         this.barBack = hardwareMap.get(CRServo.class, barBackName);
+        barBack.setDirection(DcMotorSimple.Direction.REVERSE);
         this.leftBack = hardwareMap.get(CRServo.class, leftBackName);
+        leftBack.setDirection(DcMotorSimple.Direction.REVERSE);
 
         this.rightBack = hardwareMap.get(CRServo.class, rightBackName);
+        rightBack.setDirection(DcMotorSimple.Direction.REVERSE);
     }
+
+
+    public void enableFrontWheelsSlow() {
+        // Keep same directions as enableFrontWheels(), just small magnitude
+        leftFront.setPower(-SLOW_WHEEL_POWER);
+        rightFront.setPower( SLOW_WHEEL_POWER);
+    }
+
+    public void enableBackWheelsSlow() {
+        // Keep same directions as enableBackWheels(), just small magnitude
+        leftBack.setPower( SLOW_WHEEL_POWER);
+        rightBack.setPower(-SLOW_WHEEL_POWER);
+    }
+
     public void enableFrontIntake() {
         enableFrontBar();
         enableFrontWheels();
