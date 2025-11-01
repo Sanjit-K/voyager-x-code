@@ -81,6 +81,10 @@ public class YawServo {
 
     public void back() { servo.setPosition(SERVO_BACK_POS); }
 
+    public void setPosition(double position) {
+        servo.setPosition(position);
+    }
+
     /** Current servo position. */
     public double getPosition() { return servo.getPosition(); }
 
