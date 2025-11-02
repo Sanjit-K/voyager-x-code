@@ -34,6 +34,7 @@ import org.firstinspires.ftc.robotcore.external.hardware.camera.BuiltinCameraDir
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.teamcode.intake.IntakeServos;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.turret.ColorSensor;
 import org.firstinspires.ftc.teamcode.turret.LaunchMotors;
 import org.firstinspires.ftc.teamcode.turret.LaunchServos;
 import org.firstinspires.ftc.teamcode.turret.RobotHeading;
@@ -52,11 +53,11 @@ public class BlueAuto extends LinearOpMode {
     private final ElapsedTime runtime = new ElapsedTime();
 
     // Initialize poses
-    private final Pose startPose = new Pose(72, 120, Math.toRadians(90)); // Start Pose of our robot.
+    private final Pose startPose = new Pose(63, 9, Math.toRadians(180)); // Start Pose of our robot.
     private final Pose scorePose = new Pose(72, 20, Math.toRadians(115)); // Scoring Pose of our robot. It is facing the goal at a 115 degree angle.
-    private final Pose PPGPose = new Pose(100, 83.5, Math.toRadians(0)); // Highest (First Set) of Artifacts from the Spike Mark.
-    private final Pose PGPPose = new Pose(100, 59.5, Math.toRadians(0)); // Middle (Second Set) of Artifacts from the Spike Mark.
-    private final Pose GPPPose = new Pose(100, 35.5, Math.toRadians(0)); // Lowest (Third Set) of Artifacts from the Spike Mark.
+    private final Pose PPGPose = new Pose(44, 83.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose PGPPose = new Pose(49, 59.5, Math.toRadians(180)); // Middle (Second Set) of Artifacts from the Spike Mark.
+    private final Pose GPPPose = new Pose(44, 35.5, Math.toRadians(180)); // Lowest (Third Set) of Artifacts from the Spike Mark.
 
     // Initialize variables for paths
 
@@ -68,14 +69,6 @@ public class BlueAuto extends LinearOpMode {
     private PathChain scoreGPP;
 
 
-    //set April Tag values to specific patterns
-    private static final int PPG_TAG_ID = 23;
-    private static final int PGP_TAG_ID = 22;
-    private static final int GPP_TAG_ID = 21;
-    private static final boolean USE_WEBCAM = true;  // Set true to use a webcam, or false for a phone camera
-    private VisionPortal visionPortal;               // Used to manage the video source.
-    private AprilTagProcessor aprilTag;              // Used for managing the AprilTag detection process.
-    private AprilTagDetection desiredTag = null;     // Used to hold the data for a detected AprilTag
 
 
     // Other variables
@@ -91,6 +84,8 @@ public class BlueAuto extends LinearOpMode {
     private LaunchServos launchServos;
     private IntakeServos intakeServos;
     private RobotHeading robotHeading;
+    private ColorSensor colorSensor;
+    private boolean detected;
 
     private int foundID; // Current state machine value, dictates which one to run
 
@@ -135,11 +130,9 @@ public class BlueAuto extends LinearOpMode {
         intakeServos = new IntakeServos(hardwareMap, "leftForward", "barFront", "rightForward", "leftBack", "barBack", "rightBack");
         launchServos = new LaunchServos(hardwareMap, "servoL", "servoR");
         launchMotors = new LaunchMotors(hardwareMap, follower, "turretL", "turretR");
+        colorSensor = new ColorSensor(hardwareMap, "color");
+
         robotHeading = new RobotHeading(follower);
-
-
-        boolean targetFound = false;    // Set to true when an AprilTag target is detected
-        initAprilTag();
 
         // Log completed initialization to Panels and driver station (custom log function)
         log("Status", "Initialized");
@@ -159,53 +152,10 @@ public class BlueAuto extends LinearOpMode {
             follower.update();
             panelsTelemetry.update();
             currentPose = follower.getPose(); // Update the current pose
-            targetFound = false;
-            desiredTag = null;
 
-            // Step through the list of detected tags and look for a matching tag
-            List<AprilTagDetection> currentDetections = aprilTag.getDetections();
-            for (AprilTagDetection detection : currentDetections) {
-                // Look to see if we have size info on this tag.
-                if (detection.metadata != null) {
-                    //  Check to see if we want to track towards this tag.
-                    if (detection.id == PPG_TAG_ID) {
-                        // call lines for the PGP pattern
-                        buildPathsPPG();
-                        targetFound = true;
-                        desiredTag = detection;
-                        foundID = 21; // This should likely be PPG_TAG_ID or the corresponding state machine ID
-                        break;  // don't look any further.
-                    } else if (detection.id == PGP_TAG_ID) {
-                        // call lines for the PGP pattern
-                        buildPathsPGP();
-                        targetFound = true;
-                        desiredTag = detection;
-                        foundID = 22; // This should likely be PGP_TAG_ID or the corresponding state machine ID
-                        break;  // don't look any further.
+            detected = colorSensor.detection();
+            updateStateMachine();
 
-                    } else if (detection.id == GPP_TAG_ID) {
-                        // call lines for the GPP pattern
-                        buildPathsGPP();
-                        targetFound = true;
-                        desiredTag = detection;
-                        foundID = 23; // This should likely be GPP_TAG_ID or the corresponding state machine ID
-                        break;  // don't look any further.
-                    }
-                } else {
-                    // This tag is NOT in the library, so we don't have enough information to track to it.
-                    telemetry.addData("Unknown", "Tag ID %d is not in TagLibrary", detection.id);
-                }
-            }
-
-
-            // Update the state machine
-            if (foundID == 21) { // Consider using the TAG_ID constants or a dedicated variable for which path was found
-                updateStateMachinePPG();
-            } else if (foundID == 22) {
-                updateStateMachinePGP();
-            } else if (foundID == 23) {
-                updateStateMachineGPP();
-            }
 
 
             // Log to Panels and driver station (custom log function)
@@ -268,81 +218,132 @@ public class BlueAuto extends LinearOpMode {
 
     //below is the state machine or each pattern
 
-    public void updateStateMachinePPG() {
+    public void updateStateMachine() {
         switch (pathStatePPG) {
             case 0:
-                presetLaunch();
-                setpathStatePPG(1); // Call the setter method
-                break;
+                presetLaunch(500);
+                setpathStatePPG(1);
+                break;// Call the setter method
             case 1:
                 if (runtime.seconds() > 2){
                     yawServo.back();
-                    launchServos.disable();
                     intakeServos.enableBackIntake();
                     setpathStatePPG(2); // Call the setter method
                 }
                 break;
             case 2:
-                if (runtime.seconds() > 4) {
-                    presetLaunch();
+                if (detected){
+                    launchServos.disable();
+                }
+                if (runtime.seconds() > 4.75) {
+                    presetLaunch(300);
                     setpathStatePPG(3);
                 }
+                break;
             case 3:
                 if (runtime.seconds() > 6){
                     yawServo.front();
-                    launchServos.disable();
+                    sleep(300);
                     intakeServos.enableFrontIntake();
                     setpathStatePPG(4);
                 }
+                break;
             case 4:
-                if (runtime.seconds() > 8) {
-                    presetLaunch();
+                if (detected){
+                    launchServos.disable();
+                }
+                if (runtime.seconds() > 8.75) {
+                    presetLaunch(200);
                     setpathStatePPG(5);
                 }
-
-        }
-    }
-
-
-    public void updateStateMachinePGP() {
-        switch (pathStatePGP) {
-            case 0:
-                // Move to the scoring position from the start position
-                yawServo.setPosition(0.27);
-
-                setpathStatePGP(1); // Call the setter method
                 break;
-            case 1:
-                // Wait until we have passed all path constraints
-                if (!follower.isBusy()) {
-
-                    // Move to the first artifact pickup location from the scoring position
-                    follower.followPath(scorePGP);
-                    setpathStatePGP(-1); // Call the setter for PGP
+            case 5:
+                if (runtime.seconds() > 10){
+                    launchMotors.set(0.0);
+                    yawServo.front();
+                    path1();
+                    intakeServos.enableFrontIntake();
+                    launchServos.enable();
+                    setpathStatePPG(6);
                 }
                 break;
-        }
-    }
-
-
-    public void updateStateMachineGPP() {
-        switch (pathStateGPP) {
-            case 0:
-                // Move to the scoring position from the start position
-                follower.followPath(grabGPP);
-                setpathStateGPP(1); // Call the setter method
-                break;
-            case 1:
-                // Wait until we have passed all path constraints
-                if (!follower.isBusy()) {
-
-                    // Move to the first artifact pickup location from the scoring position
-                    follower.followPath(scoreGPP);
-                    setpathStateGPP(-1); //set it to -1 so it stops the state machine execution
+            case 6:
+                if (runtime.seconds() > 12){
+                    path2();
+                    setpathStatePPG(7);
                 }
                 break;
+            case 7:
+                if (detected){
+                    intakeServos.disableFrontWheels();
+                    launchServos.disable();
+                    setpathStatePPG(8);
+                }
+                break;
+
+            case 8:
+                if (runtime.seconds() > 14.5){
+                    launchMotors.set(0.54);
+                    path3();
+                    setpathStatePPG(9);
+                }
+                break;
+
+            case 9:
+                if (runtime.seconds() > 17){
+                    launchServos.enable();
+                    launchMotors.set(0.55);
+                    intakeServos.enableFrontIntake();
+                    setpathStatePPG(10);
+                }
+                break;
+
+            case 10:
+                if (runtime.seconds() > 20){
+                    launchMotors.set(0.0);
+                    yawServo.front();
+                    path4();
+                    intakeServos.enableFrontIntake();
+                    launchServos.enable();
+                    setpathStatePPG(11);
+                }
+                break;
+            case 11:
+                if (runtime.seconds() > 22){
+                    path5();
+                    setpathStatePPG(12);
+                }
+                break;
+
+            case 12:
+                if (detected){
+                    intakeServos.disableFrontWheels();
+                    launchServos.disable();
+                    setpathStatePPG(13);
+                }
+                break;
+
+            case 13:
+                if (runtime.seconds() > 24.5){
+                    launchMotors.set(0.52);
+                    path6();
+                    setpathStatePPG(14);
+                }
+                break;
+
+            case 14:
+                if (runtime.seconds() > 27){
+                    launchServos.enable();
+                    launchMotors.set(0.53);
+                    intakeServos.enableFrontIntake();
+                    setpathStatePPG(15);
+                }
+
+
+
         }
     }
+
 
     // Setter methods for pathState variables placed at the class level
     void setpathStatePPG(int newPathState) {
@@ -358,35 +359,69 @@ public class BlueAuto extends LinearOpMode {
     }
 
 
+
     /**
      * start the AprilTag processor.
      */
-    private void initAprilTag() {
-        // Create the AprilTag processor by using a builder.
-        aprilTag = new AprilTagProcessor.Builder().build();
 
-        // Adjust Image Decimation to trade-off detection-range for detection-rate.
-        aprilTag.setDecimation(2);
-
-        // Create the vision portal by using a builder.
-        if (USE_WEBCAM) {
-            visionPortal = new VisionPortal.Builder()
-                    .setCamera(hardwareMap.get(WebcamName.class, "Webcam 1"))
-                    .addProcessor(aprilTag)
-                    .build();
-        } else {
-            visionPortal = new VisionPortal.Builder()
-                    .setCamera(BuiltinCameraDirection.BACK)
-                    .addProcessor(aprilTag)
-                    .build();
-        }
-    }
-
-    private void presetLaunch() {
-        yawServo.setPosition(0.37);
-        launchMotors.set(0.56);
-        sleep(200);
+    private void presetLaunch(int ms) {
+        yawServo.setPosition(0.36);
+        launchMotors.set(0.6);
+        sleep(ms);
         launchServos.enable();
 
+    }
+
+
+    private void path1(){
+        grabPPG = follower.pathBuilder() //
+                .addPath(new BezierLine(startPose, GPPPose))
+                .setLinearHeadingInterpolation(startPose.getHeading(), GPPPose.getHeading())
+                .build();
+        follower.followPath(grabPPG);
+    }
+
+    private void path2(){
+        follower.setMaxPower(0.15);
+         PathChain pickupPPG = follower.pathBuilder()
+                .addPath(new BezierLine(GPPPose, new Pose(20, 35.5, Math.toRadians(180))))
+                .setLinearHeadingInterpolation(GPPPose.getHeading(), Math.toRadians(180))
+                .build();
+        follower.followPath(pickupPPG);
+    }
+    private void path3(){
+        follower.setMaxPower(0.5);
+        PathChain scorePPG = follower.pathBuilder()
+                .addPath(new BezierLine(new Pose(20, 35.5, Math.toRadians(180)), new Pose(48, 48, Math.toRadians(180+110))))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180+110))
+                .build();
+        follower.followPath(scorePPG);
+    }
+
+    private void path4(){
+        follower.setMaxPower(1);
+        PathChain scorePGP = follower.pathBuilder()
+                .addPath(new BezierLine(new Pose(48, 48, Math.toRadians(180+110)), PGPPose))
+                .setLinearHeadingInterpolation(Math.toRadians(180+110), PGPPose.getHeading())
+                .build();
+        follower.followPath(scorePGP);
+    }
+
+    private void path5(){
+        follower.setMaxPower(0.15);
+        PathChain pickupPGP = follower.pathBuilder()
+                .addPath(new BezierLine(PGPPose, new Pose(20, 59.5, Math.toRadians(180))))
+                .setLinearHeadingInterpolation(PGPPose.getHeading(), Math.toRadians(180))
+                .build();
+        follower.followPath(pickupPGP);
+    }
+
+    private void path6(){
+        follower.setMaxPower(0.5);
+        PathChain scorePGP = follower.pathBuilder()
+                .addPath(new BezierLine(new Pose(20, 59.5, Math.toRadians(180)), new Pose(48, 72, Math.toRadians(180+125))))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180+125))
+                .build();
+        follower.followPath(scorePGP);
     }
 }

@@ -245,6 +245,10 @@ public class BlueTeleOp extends OpMode {
                 launchServos.disable();
                 launchServosActive = false;
             }
+            else if (detected && gamepad1.left_trigger >= 0.5){
+                launchServos.enable();
+                launchServosActive = true;
+            }
 
             telemetryM.debug("Brightness(0-255)", brightness);
             telemetryM.debug("Detected", detected);
