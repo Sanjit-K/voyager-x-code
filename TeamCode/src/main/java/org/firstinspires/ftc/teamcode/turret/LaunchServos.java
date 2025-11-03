@@ -13,8 +13,8 @@ public class LaunchServos {
     }
 
     public void enable(){
-        leftServo.setPower(-1.0);
-        rightServo.setPower(1.0);
+        leftServo.setPower(-0.6);
+        rightServo.setPower(0.6);
     }
 
     public void disable(){

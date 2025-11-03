@@ -7,6 +7,7 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.intake.IntakeServos;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
@@ -25,21 +26,38 @@ public class BlueTeleOp extends OpMode {
     private boolean automatedDrive;
     private TelemetryManager telemetryM;
     private ColorSensor colorSensor;
-    private double turretPower = 0.5;
-    private boolean turretSpinning = false;
 
-    // Turret helpers
+    private double turretPower = 0.5;
+    private boolean turretSpinning = false;         // shooters running?
+    private boolean shootersLockedOn = false;       // set true after touchpad press (“never off”)
+
+    // Intake/turret helpers and state
     private YawServo yawServo;
     private TurretConstants turretConstants;
     private IntakeServos intakeServos;
     private LaunchServos launchServos;
     private LaunchMotors launchMotors;
-    private RobotHeading robotHeading; // helper to aim at goal
+    private RobotHeading robotHeading;
+
     private boolean frontSpinningBar = false;
     private boolean frontSpinningWheels = false;
     private boolean backSpinningBar = false;
     private boolean backSpinningWheels = false;
     private boolean launchServosActive = false;
+    private boolean yawServoDirection = false;
+
+    // “swap which intake is active” state for G2 ▢ (square)
+    private boolean frontIntakeSelected = true;
+
+    // Edge-detect for analog triggers on G2
+    private boolean g2LtPressedPrev = false;
+    private boolean g2RtPressedPrev = false;
+
+    // Cooldown so the G2 right-stick “power up/down” doesn’t spam
+    private final ElapsedTime powerNudgeTimer = new ElapsedTime();
+    private static final double POWER_NUDGE_COOLDOWN_S = 0.25;
+    private static final double POWER_NUDGE = 0.05;
+    private static final double STICK_ACTIVATE = 0.7;
 
     // Alliance POV offset: 180 = Blue, 0 = Red
     private final double offset = Math.toRadians(180.0);
@@ -53,26 +71,34 @@ public class BlueTeleOp extends OpMode {
     public void init() {
         follower = Constants.createFollower(hardwareMap);
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
+
+        // Optional: if your Auto saves its end pose somewhere accessible, use it.
+        try {
+            // Prefer a getter if you add one; keep null-safe.
+            Pose autoEnd = null;
+            try { autoEnd = (Pose) Constants.class.getField("lastAutoEndPose").get(null); } catch (Throwable ignored) {}
+            if (autoEnd != null) startingPose = autoEnd;
+        } catch (Throwable ignored) {}
+
         follower.setStartingPose(startingPose);
 
-        intakeServos = new IntakeServos(hardwareMap, "leftForward", "barFront", "rightForward", "leftBack", "barBack", "rightBack");
+        intakeServos = new IntakeServos(hardwareMap,
+                "leftForward", "barFront", "rightForward",
+                "leftBack",   "barBack",  "rightBack");
+
         launchServos = new LaunchServos(hardwareMap, "servoL", "servoR");
         launchMotors = new LaunchMotors(hardwareMap, follower, "turretL", "turretR");
 
-        // Turret initialization
         turretConstants = new TurretConstants();
-        // Assumption: yaw servo is named "yawServo" in hardware map. Change name if different.
         try {
             yawServo = new YawServo(hardwareMap, follower, "yawServo", false);
         } catch (Exception e) {
-            // If the hardware map doesn't contain the servo name, yawServo will remain null; telemetry will show this.
             yawServo = null;
         }
-
         robotHeading = new RobotHeading(follower);
-        if (yawServo != null) yawServo.center();
+        if (yawServo != null) yawServo.back();
 
-        // Initialize color sensor and snapshot background (expects a device named "color")
+        // Color sensor is optional
         try {
             colorSensor = new ColorSensor(hardwareMap, "color");
             telemetryM.debug("Color Sensor", "initialized");
@@ -80,180 +106,184 @@ public class BlueTeleOp extends OpMode {
             colorSensor = null;
             telemetryM.debug("Color Sensor", "NOT FOUND: check config name 'color'");
         }
+
+        powerNudgeTimer.reset();
     }
 
     @Override
     public void start() {
-        //The parameter controls whether the Follower should use break mode on the motors (using it is recommended).
-        //In order to use float mode, add .useBrakeModeInTeleOp(true); to your Drivetrain Constants in Constant.java (for Mecanum)
-        //If you don't pass anything in, it uses the default (false)
         follower.startTeleopDrive();
     }
 
     @Override
     public void loop() {
-        //Call this once per loop
         follower.update();
 
-        // Update turret constants with current robot pose (field inches)
+        // Keep turret model updated
         turretConstants.setRobotPose(follower.getPose().getX(), follower.getPose().getY());
         turretConstants.update();
 
-
-
-
-
-        // Early exit back to teleop when automatedDrive finishes
+        // Early exit back to manual when an automated routine finishes
         if (automatedDrive && !follower.isBusy()) {
             follower.startTeleopDrive();
             automatedDrive = false;
         }
 
+        // =====================  GAMEPAD 1 (DRIVE)  =====================
+        // DRIVE LOCK (hold): G1 Left Trigger — lock robot in place while held
+        boolean g1Locked = gamepad1.left_trigger > 0.5;
+
         if (!automatedDrive) {
-            //Make the last parameter false for field-centric
-            //In case the drivers want to use a "slowMode" you can scale the vectors
-            if (gamepad1.aWasPressed()){
-                frontSpinningBar = toggle(frontSpinningBar,
-                        intakeServos::enableFrontBar,
-                        intakeServos::disableFrontBar
-                );
-            }
-
-            if (gamepad1.leftBumperWasPressed()){
-                frontSpinningWheels = toggle(frontSpinningWheels,
-                        intakeServos::enableFrontWheels,
-                        intakeServos::disableFrontWheels
-                );
-            }
-
-            if (gamepad1.rightBumperWasPressed()){
-                backSpinningWheels = toggle(backSpinningWheels,
-                        intakeServos::enableBackWheels,
-                        intakeServos::disableBackWheels);
-            }
-
-            if(gamepad1.bWasPressed()){
-                backSpinningBar = toggle(backSpinningBar,
-                        intakeServos::enableBackBar,
-                        intakeServos::disableBackBar);
-            }
-
-
-
-            if(gamepad1.dpadDownWasPressed()){
-                yawServo.back();
-            }
-
-            if(gamepad1.dpadUpWasPressed()){
-                yawServo.front();
-            }
-
-            if(gamepad1.dpadRightWasPressed()){
-                yawServo.center();
-            }
-
-            // Toggle launch servos
+            // Aim-at-goal trigger MOVED: Share → G1 Left Stick Button
             if (gamepad1.leftStickButtonWasPressed()) {
-                launchServosActive = toggle(launchServosActive,
-                        launchServos::enable,
-                        launchServos::disable
-                );
-            }
-
-
-            follower.setTeleOpDrive(
-                    -gamepad1.left_stick_y ,
-                    -gamepad1.left_stick_x ,
-                    -gamepad1.right_stick_x ,
-                    false,
-                    offset
-            );
-
-
-            //Slow Mode
-            if (gamepad1.shareWasPressed()) {
                 if (robotHeading != null) {
                     robotHeading.aimAtGoal();
-                    automatedDrive = true; // let follower control until done
+                    automatedDrive = true;
                 }
             }
 
-            // Turret spin toggle
-            if (gamepad1.optionsWasPressed()) {
-                turretSpinning = toggle(
-                        turretSpinning,
-                        () -> launchMotors.set(turretPower),
-                        () -> launchMotors.set(0.0)
+            // Field-centric drive with alliance offset, suppressed if locked
+            if (g1Locked) {
+                follower.setTeleOpDrive(0, 0, 0, false, offset);
+            } else {
+                follower.setTeleOpDrive(
+                        -gamepad1.left_stick_y,
+                        -gamepad1.left_stick_x,
+                        -gamepad1.right_stick_x,
+                        false,
+                        offset
                 );
             }
-
-            // Bump turret power up/down
-            if (gamepad1.xWasPressed()) turretPower = Math.min(turretPower + 0.05, 1.0);
-            if (gamepad1.yWasPressed()) turretPower = Math.max(turretPower - 0.05, 0.0);
-
-            // >>> NEW: if we’re spinning, immediately apply the updated power
-            if (turretSpinning) {
-                launchMotors.set(turretPower);
-            }
-
-            // --- Gamepad2 slow creep for intake wheels (while held) ---
-            boolean frontSlowHeld = gamepad2.a;
-            boolean backSlowHeld  = gamepad2.b;
-
-// Front wheels slow creep
-            if (frontSlowHeld) {
-                intakeServos.enableFrontWheelsSlow();
-            } else {
-                // restore prior state (based on your existing toggle)
-                if (frontSpinningWheels) intakeServos.enableFrontWheels();
-                else                     intakeServos.disableFrontWheels();
-            }
-
-// Back wheels slow creep
-            if (backSlowHeld) {
-                intakeServos.enableBackWheelsSlow();
-            } else {
-                // restore prior state (based on your existing toggle)
-                if (backSpinningWheels) intakeServos.enableBackWheels();
-                else                    intakeServos.disableBackWheels();
-            }
-
-
-
-
-            // Telemetry
-            telemetryM.debug("position", follower.getPose());
-            telemetryM.debug("velocity", follower.getVelocity());
-            telemetryM.debug("automatedDrive", automatedDrive);
-            telemetryM.debug("Turret Power", turretPower);
-            telemetryM.debug("Goal Bearing (deg)", turretConstants.getBearingDeg());
-            telemetryM.debug("Distance to Goal", turretConstants.getDistance());
-            telemetryM.debug("Target RPM (est)", turretConstants.getTargetRPM());
-            telemetryM.debug("Yaw Servo Pos", yawServo != null ? yawServo.getPosition() : "N/A");
-
-
-            // Minimal color sensor telemetry (brightness + detection)
-            boolean detected = false;
-            int brightness = 0;
-            if (colorSensor != null) {
-                brightness = colorSensor.getBrightness8bit();
-                detected = colorSensor.detection();
-            }
-
-            // Use detection in place of purple/green logic
-            if (detected && gamepad1.left_trigger < 0.5){
-                launchServos.disable();
-                launchServosActive = false;
-            }
-            else if (detected && gamepad1.left_trigger >= 0.5){
-                launchServos.enable();
-                launchServosActive = true;
-            }
-
-            telemetryM.debug("Brightness(0-255)", brightness);
-            telemetryM.debug("Detected", detected);
-
-            telemetryM.update(telemetry);
         }
+
+        // =====================  GAMEPAD 2 (ACTIONS)  =====================
+
+        // ▢ (Square) — toggle which intake side is ACTIVE (front <-> back)
+        if (gamepad2.xWasPressed()) { // PS4 Square is X in FTC mapping
+            frontIntakeSelected = !frontIntakeSelected;
+            if (frontIntakeSelected) {
+                // enable front wheels, disable back wheels (respect slow-creep logic later)
+                frontSpinningWheels = true;
+                backSpinningWheels  = false;
+                intakeServos.enableFrontWheels();
+                intakeServos.disableBackWheels();
+            } else {
+                frontSpinningWheels = false;
+                backSpinningWheels  = true;
+                intakeServos.disableFrontWheels();
+                intakeServos.enableBackWheels();
+            }
+        }
+
+        // L1 — FRONT BAR (moved from G1 A)
+        if (gamepad2.leftBumperWasPressed()) {
+            frontSpinningBar = toggle(frontSpinningBar, intakeServos::enableFrontBar, intakeServos::disableFrontBar);
+        }
+
+        // L2 — FRONT WHEELS toggle (moved from G1 L1)
+        boolean g2LtPressed = gamepad2.left_trigger > 0.5;
+        if (g2LtPressed && !g2LtPressedPrev) {
+            frontSpinningWheels = toggle(frontSpinningWheels, intakeServos::enableFrontWheels, intakeServos::disableFrontWheels);
+        }
+        g2LtPressedPrev = g2LtPressed;
+
+        // R2 — BACK WHEELS toggle (moved from G1 R1/L2 note)
+        boolean g2RtPressed = gamepad2.right_trigger > 0.5;
+        if (g2RtPressed && !g2RtPressedPrev) {
+            backSpinningWheels = toggle(backSpinningWheels, intakeServos::enableBackWheels, intakeServos::disableBackWheels);
+        }
+        g2RtPressedPrev = g2RtPressed;
+
+        // (unchanged) G2 A/B slow creep while held — restores prior toggled states when released
+        boolean frontSlowHeld = gamepad2.a;
+        boolean backSlowHeld  = gamepad2.b;
+        if (frontSlowHeld) {
+            intakeServos.enableFrontWheelsSlow();
+        } else {
+            if (frontSpinningWheels) intakeServos.enableFrontWheels(); else intakeServos.disableFrontWheels();
+        }
+        if (backSlowHeld) {
+            intakeServos.enableBackWheelsSlow();
+        } else {
+            if (backSpinningWheels) intakeServos.enableBackWheels(); else intakeServos.disableBackWheels();
+        }
+
+        // (moved) BACK BAR — from G1 B to G2 L2 per your note “L2 - backbar”; to avoid conflict with wheels on L2, map to G2 R1 (right bumper)
+        if (gamepad2.rightBumperWasPressed()) {
+            backSpinningBar = toggle(backSpinningBar, intakeServos::enableBackBar, intakeServos::disableBackBar);
+        }
+
+        // Yaw servo front/back — stays on G2 X (triangle/square already used)
+        if (gamepad2.yWasPressed()) { // PS4 Triangle is Y in FTC mapping
+            yawServoDirection = toggle(yawServoDirection,
+                    () -> { if (yawServo != null) yawServo.front(); },
+                    () -> { if (yawServo != null) yawServo.back();  });
+        }
+        if (gamepad2.dpadRightWasPressed()) { if (yawServo != null) yawServo.center(); }
+
+        // Launch servos TOGGLE — moved from G1 L3 to G2 L3
+        if (gamepad2.leftStickButtonWasPressed()) {
+            launchServosActive = toggle(launchServosActive, launchServos::enable, launchServos::disable);
+        }
+
+        // TOUCHPAD — “Turn on shooters (never turn off)” (moved from G1 OPTIONS)
+        // Some wrappers expose touchpad; as a fallback, also honor G2 OPTIONS.
+        boolean touchpadPressed = false;
+        try {
+            touchpadPressed = gamepad2.touchpadWasPressed();
+        } catch (Throwable ignored) {}
+        if (touchpadPressed || gamepad2.optionsWasPressed()) {
+            shootersLockedOn = true;
+            turretSpinning   = true;
+            launchMotors.set(turretPower);
+        }
+
+        // G2 Right stick up/down adjusts turret power (up = increase, down = decrease)
+        if (powerNudgeTimer.seconds() > POWER_NUDGE_COOLDOWN_S) {
+            if (gamepad2.right_stick_y < -STICK_ACTIVATE) { // stick up
+                turretPower = Math.min(1.0, turretPower + POWER_NUDGE);
+                powerNudgeTimer.reset();
+            } else if (gamepad2.right_stick_y > STICK_ACTIVATE) { // stick down
+                turretPower = Math.max(0.0, turretPower - POWER_NUDGE);
+                powerNudgeTimer.reset();
+            }
+        }
+        if (turretSpinning) launchMotors.set(turretPower);
+
+        // NOTE: we no longer allow turning shooters off via a button if shootersLockedOn == true
+        // If you still want a safety kill, add one explicitly (e-stop).
+
+        // =====================  TARGET + DETECTION LOGIC  =====================
+        // Use detection in place of purple/green logic (left trigger on G1 is now drive lock; keep detection on G1 LT threshold for consistency if desired)
+        boolean detected = false;
+        int brightness = 0;
+        if (colorSensor != null) {
+            brightness = colorSensor.getBrightness8bit();
+            detected = colorSensor.detection();
+        }
+        if (detected && gamepad1.left_trigger < 0.5){
+            launchServos.disable();
+            launchServosActive = false;
+        } else if (detected && gamepad1.left_trigger >= 0.5){
+            launchServos.enable();
+            launchServosActive = true;
+        }
+
+        // =====================  TELEMETRY  =====================
+        telemetryM.debug("position", follower.getPose());
+        telemetryM.debug("velocity", follower.getVelocity());
+        telemetryM.debug("automatedDrive", automatedDrive);
+        telemetryM.debug("Drive Locked (G1 LT)", g1Locked);
+        telemetryM.debug("Turret Power", turretPower);
+        telemetryM.debug("Shooters Spinning", turretSpinning);
+        telemetryM.debug("Shooters Locked On", shootersLockedOn);
+        telemetryM.debug("Goal Bearing (deg)", turretConstants.getBearingDeg());
+        telemetryM.debug("Distance to Goal", turretConstants.getDistance());
+        telemetryM.debug("Target RPM (est)", turretConstants.getTargetRPM());
+        telemetryM.debug("Yaw Servo Pos", yawServo != null ? yawServo.getPosition() : "N/A");
+        telemetryM.debug("Brightness(0-255)", brightness);
+        telemetryM.debug("Detected", detected);
+        telemetryM.debug("Active Intake", frontIntakeSelected ? "FRONT" : "BACK");
+        telemetryM.update(telemetry);
     }
 }
