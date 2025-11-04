@@ -110,7 +110,7 @@ public class RedAuto extends LinearOpMode {
 
         yawServo = new YawServo(hardwareMap, follower, "yawServo", false);
         intakeServos = new IntakeServos(hardwareMap, "leftForward", "barFront", "rightForward", "leftBack", "barBack", "rightBack");
-        launchServos = new LaunchServos(hardwareMap, "servoL", "servoR");
+        launchServos = new LaunchServos(hardwareMap, "servoL", "servoR", "servoTop");
         launchMotors = new LaunchMotors(hardwareMap, follower, "turretL", "turretR");
         colorSensor = new ColorSensor(hardwareMap, "color");
 

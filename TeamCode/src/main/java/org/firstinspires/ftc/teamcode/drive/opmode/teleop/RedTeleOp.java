@@ -56,7 +56,7 @@ public class RedTeleOp extends OpMode {
         follower.setStartingPose(startingPose);
 
         intakeServos = new IntakeServos(hardwareMap, "leftForward", "barFront", "rightForward", "leftBack", "barBack", "rightBack");
-        launchServos = new LaunchServos(hardwareMap, "servoL", "servoR");
+        launchServos = new LaunchServos(hardwareMap, "servoL", "servoR", "servoTop");
         launchMotors = new LaunchMotors(hardwareMap, follower, "turretL", "turretR");
 
         // Turret initialization

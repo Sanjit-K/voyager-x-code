@@ -22,7 +22,7 @@ import org.firstinspires.ftc.teamcode.turret.TurretConstants;
 @TeleOp
 public class BlueTeleOp extends OpMode {
     private Follower follower;
-    public static Pose startingPose = new Pose(62, 33, Math.toRadians(180));
+    public static Pose startingPose = new Pose(48, 72, Math.toRadians(180+122));
     private boolean automatedDrive;
     private TelemetryManager telemetryM;
     private ColorSensor colorSensor;
@@ -86,7 +86,7 @@ public class BlueTeleOp extends OpMode {
                 "leftForward", "barFront", "rightForward",
                 "leftBack",   "barBack",  "rightBack");
 
-        launchServos = new LaunchServos(hardwareMap, "servoL", "servoR");
+        launchServos = new LaunchServos(hardwareMap, "servoL", "servoR", "servoTop");
         launchMotors = new LaunchMotors(hardwareMap, follower, "turretL", "turretR");
 
         turretConstants = new TurretConstants();
@@ -259,13 +259,21 @@ public class BlueTeleOp extends OpMode {
         int brightness = 0;
         if (colorSensor != null) {
             brightness = colorSensor.getBrightness8bit();
-            detected = colorSensor.detection();
+            detected = colorSensor.delayedDetection();
         }
         if (detected && gamepad1.left_trigger < 0.5){
             launchServos.disable();
+            intakeServos.disableFrontWheels();
+            intakeServos.disableBackWheels();
+            frontSpinningWheels = false;
+            backSpinningWheels = false;
             launchServosActive = false;
-        } else if (detected && gamepad1.left_trigger >= 0.5){
+        } else if (gamepad1.left_trigger >= 0.5){
             launchServos.enable();
+            intakeServos.enableFrontWheels();
+            intakeServos.enableBackWheels();
+            frontSpinningWheels = true;
+            backSpinningWheels = true;
             launchServosActive = true;
         }
 
