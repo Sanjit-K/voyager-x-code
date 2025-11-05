@@ -30,8 +30,6 @@ public class BlueAuto extends LinearOpMode {
 
     // Initialize poses
     private final Pose startPose = new Pose(61.5, 9, Math.toRadians(180)); // Start Pose of our robot.
-    private final Pose scorePose = new Pose(72, 20, Math.toRadians(115)); // Scoring Pose of our robot. It is facing the goal at a 115 degree angle.
-    private final Pose PPGPose = new Pose(44, 83.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose PGPPose = new Pose(49, 59.5, Math.toRadians(180)); // Middle (Second Set) of Artifacts from the Spike Mark.
     private final Pose GPPPose = new Pose(44, 35.5, Math.toRadians(180)); // Lowest (Third Set) of Artifacts from the Spike Mark.
 
@@ -54,7 +52,6 @@ public class BlueAuto extends LinearOpMode {
     private LaunchMotors launchMotors;
     private LaunchServos launchServos;
     private IntakeServos intakeServos;
-    private RobotHeading robotHeading;
     private ColorSensor colorSensor;
     private boolean detected;
 
@@ -94,13 +91,12 @@ public class BlueAuto extends LinearOpMode {
         launchMotors = new LaunchMotors(hardwareMap, follower, "turretL", "turretR");
         colorSensor = new ColorSensor(hardwareMap, "color");
 
-        robotHeading = new RobotHeading(follower);
 
         // Log completed initialization to Panels and driver station (custom log function)
         log("Status", "Initialized");
         telemetry.update(); // Update driver station after logging
         yawServo.setPosition(0.36);
-        colorSensor.setDelayMillis(350);
+//        colorSensor.setDelayMillis(350);
 
         // Wait for the game to start (driver presses START)
         waitForStart();
@@ -115,7 +111,7 @@ public class BlueAuto extends LinearOpMode {
             panelsTelemetry.update();
             currentPose = follower.getPose(); // Update the current pose
 
-            detected = colorSensor.detection();
+            detected = colorSensor.delayedDetection();
             updateStateMachine();
 
             // Log to Panels and driver station (custom log function)
@@ -195,7 +191,7 @@ public class BlueAuto extends LinearOpMode {
 
             case 8: // Moves to scoring pose
                 if (runtime.seconds() > 15.7){
-                    launchMotors.set(0.58);
+                    launchMotors.set(0.56);
                     path3();
                     setpathState(9);
                 }
@@ -211,7 +207,6 @@ public class BlueAuto extends LinearOpMode {
 
             case 10: // Moves to second artifact pickup pose
                 if (runtime.seconds() > 20.7){
-                    launchMotors.set(0.0);
                     yawServo.front();
                     path4();
                     intakeServos.enableFrontIntake();
@@ -236,15 +231,15 @@ public class BlueAuto extends LinearOpMode {
                 break;
 
             case 13: // Moves to scoring pose
-                if (runtime.seconds() > 26.4){
-                    launchMotors.set(0.57);
+                if (runtime.seconds() > 25.5){
+                    launchMotors.set(0.55);
                     path6();
                     setpathState(14);
                 }
                 break;
 
             case 14: // Shoots ball no 6 and 7
-                if (runtime.seconds() > 28 && !follower.isBusy()){
+                if (runtime.seconds() > 27.5 && !follower.isBusy()){
                     launchServos.enable();
                     intakeServos.enableFrontIntake();
                     setpathState(15);
@@ -267,7 +262,7 @@ public class BlueAuto extends LinearOpMode {
 
     private void presetLaunch(int ms) {
         yawServo.setPosition(0.36);
-        launchMotors.set(0.64);
+        launchMotors.set(0.65);
         sleep(ms);
         launchServos.enable();
 
@@ -294,8 +289,8 @@ public class BlueAuto extends LinearOpMode {
     private void path3(){
         follower.setMaxPower(0.5);
         PathChain scorePPG = follower.pathBuilder()
-                .addPath(new BezierLine(new Pose(20, 35.5, Math.toRadians(180)), new Pose(48, 48, Math.toRadians(180+118))))
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180+118))
+                .addPath(new BezierLine(new Pose(20, 35.5, Math.toRadians(180)), new Pose(48, 48, Math.toRadians(180+116))))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180+116))
                 .build();
         follower.followPath(scorePPG);
     }
@@ -303,8 +298,8 @@ public class BlueAuto extends LinearOpMode {
     private void path4(){
         follower.setMaxPower(1);
         PathChain scorePGP = follower.pathBuilder()
-                .addPath(new BezierLine(new Pose(48, 48, Math.toRadians(180+118)), PGPPose))
-                .setLinearHeadingInterpolation(Math.toRadians(180+118), PGPPose.getHeading())
+                .addPath(new BezierLine(new Pose(48, 48, Math.toRadians(180+116)), PGPPose))
+                .setLinearHeadingInterpolation(Math.toRadians(180+116), PGPPose.getHeading())
                 .build();
         follower.followPath(scorePGP);
     }
@@ -321,8 +316,8 @@ public class BlueAuto extends LinearOpMode {
     private void path6(){
         follower.setMaxPower(0.5);
         PathChain scorePGP = follower.pathBuilder()
-                .addPath(new BezierLine(new Pose(20, 59.5, Math.toRadians(180)), new Pose(48, 72, Math.toRadians(180+122))))
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180+122))
+                .addPath(new BezierLine(new Pose(20, 59.5, Math.toRadians(180)), new Pose(48, 72, Math.toRadians(180+124))))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180+124))
                 .build();
         follower.followPath(scorePGP);
     }

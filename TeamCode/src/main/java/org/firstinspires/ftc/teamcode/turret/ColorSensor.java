@@ -12,9 +12,9 @@ public class ColorSensor {
     private volatile float hueThresholdDegrees = 5f;
 
     // For delayed detection
-    private volatile long delayMillis = 200; // Default 100ms delay
+    private volatile long delayMillis = 200; // Default 200ms delay
     private final Queue<HueSnapshot> hueHistory = new LinkedList<>();
-    private static final int MAX_HISTORY_SIZE = 100; // Prevent unbounded growth
+    private static final int MAX_HISTORY_SIZE = 1000; // Allow ~10 seconds at 50Hz (500 * 20ms = 10000ms)
 
     public ColorSensor(HardwareMap hardwareMap, String deviceName) {
         com.qualcomm.robotcore.hardware.NormalizedColorSensor n = null;
@@ -38,45 +38,45 @@ public class ColorSensor {
         long currentTime = System.currentTimeMillis();
         float currentHue = getHueDegrees();
 
-        // Add current hue to history
         synchronized (hueHistory) {
+            // Add current reading to queue
             hueHistory.add(new HueSnapshot(currentTime, currentHue));
 
-            // Limit history size
+            // Limit history size to prevent unbounded growth
             while (hueHistory.size() > MAX_HISTORY_SIZE) {
-                hueHistory.poll();
+                hueHistory.poll(); // Remove oldest
             }
 
-            // Remove entries older than we need
-            long cutoffTime = currentTime - (delayMillis * 2); // Keep 2x delay for safety
-            while (!hueHistory.isEmpty() && hueHistory.peek() != null && hueHistory.peek().timestamp < cutoffTime) {
-                hueHistory.poll();
-            }
-
-            // Find the hue value from approximately delayMillis ago
+            // Calculate the target time we want to check (delayMillis ago)
             long targetTime = currentTime - delayMillis;
-            float delayedHue = currentHue; // Default to current if no history
 
-            // If we don't have enough history yet, use current hue
-            if (hueHistory.size() < 2) {
-                return delayedHue > hueThresholdDegrees;
+            // Remove entries that are TOO old (more than 2x the delay, to save memory)
+            long cutoffTime = currentTime - (delayMillis * 2);
+            while (!hueHistory.isEmpty() && hueHistory.peek().timestamp < cutoffTime) {
+                hueHistory.poll();
             }
 
-            // Find the snapshot closest to but not after targetTime
+            // Now search through the queue to find the entry closest to targetTime
+            if (hueHistory.isEmpty()) {
+                return false; // No history available
+            }
+
             HueSnapshot closestSnapshot = null;
+            long closestDiff = Long.MAX_VALUE;
+
             for (HueSnapshot snapshot : hueHistory) {
-                if (snapshot.timestamp <= targetTime) {
+                long diff = Math.abs(snapshot.timestamp - targetTime);
+                if (diff < closestDiff) {
+                    closestDiff = diff;
                     closestSnapshot = snapshot;
-                } else {
-                    // We've gone past the target time
-                    break;
                 }
             }
 
-            if (closestSnapshot != null) {
-                delayedHue = closestSnapshot.hue;
+            if (closestSnapshot == null) {
+                return false; // Shouldn't happen but safety check
             }
 
+            float delayedHue = closestSnapshot.hue;
             return delayedHue > hueThresholdDegrees;
         }
     }
