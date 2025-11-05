@@ -22,12 +22,12 @@ import org.firstinspires.ftc.teamcode.turret.TurretConstants;
 @TeleOp
 public class BlueTeleOp extends OpMode {
     private Follower follower;
-    public static Pose startingPose = new Pose(62, 33, Math.toRadians(180));
+    public static Pose startingPose = new Pose(48, 72, Math.toRadians(180+122));
     private boolean automatedDrive;
     private TelemetryManager telemetryM;
     private ColorSensor colorSensor;
 
-    private double turretPower = 0.5;
+    private double turretPower = 0.60;
     private boolean turretSpinning = false;         // shooters running?
     private boolean shootersLockedOn = false;       // set true after touchpad press (“never off”)
 
@@ -72,21 +72,13 @@ public class BlueTeleOp extends OpMode {
         follower = Constants.createFollower(hardwareMap);
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
 
-        // Optional: if your Auto saves its end pose somewhere accessible, use it.
-        try {
-            // Prefer a getter if you add one; keep null-safe.
-            Pose autoEnd = null;
-            try { autoEnd = (Pose) Constants.class.getField("lastAutoEndPose").get(null); } catch (Throwable ignored) {}
-            if (autoEnd != null) startingPose = autoEnd;
-        } catch (Throwable ignored) {}
-
         follower.setStartingPose(startingPose);
 
         intakeServos = new IntakeServos(hardwareMap,
                 "leftForward", "barFront", "rightForward",
                 "leftBack",   "barBack",  "rightBack");
 
-        launchServos = new LaunchServos(hardwareMap, "servoL", "servoR");
+        launchServos = new LaunchServos(hardwareMap, "servoL", "servoR", "servoTop");
         launchMotors = new LaunchMotors(hardwareMap, follower, "turretL", "turretR");
 
         turretConstants = new TurretConstants();
@@ -259,14 +251,17 @@ public class BlueTeleOp extends OpMode {
         int brightness = 0;
         if (colorSensor != null) {
             brightness = colorSensor.getBrightness8bit();
-            detected = colorSensor.detection();
+            detected = colorSensor.delayedDetection();
         }
         if (detected && gamepad1.left_trigger < 0.5){
             launchServos.disable();
+            intakeServos.disableFrontWheels();
+            intakeServos.disableBackWheels();
+            frontSpinningWheels = false;
+            backSpinningWheels = false;
             launchServosActive = false;
-        } else if (detected && gamepad1.left_trigger >= 0.5){
+        } else if (gamepad1.left_trigger >= 0.5){
             launchServos.enable();
-            launchServosActive = true;
         }
 
         // =====================  TELEMETRY  =====================

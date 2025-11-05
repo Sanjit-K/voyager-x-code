@@ -31,11 +31,15 @@ public class RobotHeading {
         // Path to change heading
         PathChain faceGoalPath = follower.pathBuilder()
                 .addPath(new BezierLine(robotPose, adjusted))
-                .setLinearHeadingInterpolation(robotPose.getHeading(), desiredHeading, 0.2)
+                .setLinearHeadingInterpolation(robotPose.getHeading(), -desiredHeading, 0.2)
                 .build();
 
 
         // follow the path
         follower.followPath(faceGoalPath);
+    }
+
+    public void shootAtGoal() {
+
     }
 }
