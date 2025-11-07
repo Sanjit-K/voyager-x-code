@@ -191,7 +191,7 @@ public class BlueAuto extends LinearOpMode {
 
             case 8: // Moves to scoring pose
                 if (runtime.seconds() > 15.7){
-                    launchMotors.set(0.56);
+                    launchMotors.set(0.58);
                     path3();
                     setpathState(9);
                 }
@@ -232,7 +232,7 @@ public class BlueAuto extends LinearOpMode {
 
             case 13: // Moves to scoring pose
                 if (runtime.seconds() > 25.5){
-                    launchMotors.set(0.55);
+                    launchMotors.set(0.575);
                     path6();
                     setpathState(14);
                 }
@@ -261,7 +261,7 @@ public class BlueAuto extends LinearOpMode {
      */
 
     private void presetLaunch(int ms) {
-        yawServo.setPosition(0.36);
+        yawServo.setPosition(0.365);
         launchMotors.set(0.65);
         sleep(ms);
         launchServos.enable();
@@ -287,7 +287,7 @@ public class BlueAuto extends LinearOpMode {
         follower.followPath(pickupPPG);
     }
     private void path3(){
-        follower.setMaxPower(0.5);
+        follower.setMaxPower(0.5); // move to scoring pos.
         PathChain scorePPG = follower.pathBuilder()
                 .addPath(new BezierLine(new Pose(20, 35.5, Math.toRadians(180)), new Pose(48, 48, Math.toRadians(180+116))))
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180+116))
@@ -314,10 +314,10 @@ public class BlueAuto extends LinearOpMode {
     }
 
     private void path6(){
-        follower.setMaxPower(0.5);
+        follower.setMaxPower(0.5); // move to second scoring pos.
         PathChain scorePGP = follower.pathBuilder()
-                .addPath(new BezierLine(new Pose(20, 59.5, Math.toRadians(180)), new Pose(48, 72, Math.toRadians(180+124))))
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180+124))
+                .addPath(new BezierLine(new Pose(20, 59.5, Math.toRadians(180)), new Pose(48, 72, Math.toRadians(180+125))))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180+125))
                 .build();
         follower.followPath(scorePGP);
     }

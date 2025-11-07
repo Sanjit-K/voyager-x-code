@@ -167,6 +167,14 @@ public class BlueTeleOp extends OpMode {
             }
         }
 
+        // 🔹 NEW: Reset heading to 0° (G2 D-pad LEFT)
+        if (gamepad2.dpadLeftWasPressed()) {
+            if (robotHeading != null) {
+                robotHeading.resetHeading(); // sets IMU / follower heading to 0 radians
+                telemetryM.debug("Heading Reset", "Robot heading set to 0°");
+            }
+        }
+
         // L1 — FRONT BAR (moved from G1 A)
         if (gamepad2.leftBumperWasPressed()) {
             frontSpinningBar = toggle(frontSpinningBar, intakeServos::enableFrontBar, intakeServos::disableFrontBar);

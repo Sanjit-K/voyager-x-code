@@ -42,4 +42,21 @@ public class RobotHeading {
     public void shootAtGoal() {
 
     }
+
+    public void resetHeading() {
+        resetHeading(0.0);
+    }
+
+    /** Reset the follower's heading to a specific angle (radians) while keeping X/Y. */
+    public void resetHeading(double headingRad) {
+        Pose p = follower.getPose();
+        follower.setStartingPose(new Pose(p.getX(), p.getY(), headingRad));
+        // Optional: ensure teleop drive uses the new pose immediately
+        follower.startTeleopDrive();
+    }
+
+    /** Convenience: reset using degrees. */
+    public void resetHeadingDegrees(double deg) {
+        resetHeading(Math.toRadians(deg));
+    }
 }
