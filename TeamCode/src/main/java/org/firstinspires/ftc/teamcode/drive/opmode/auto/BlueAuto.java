@@ -30,7 +30,7 @@ public class BlueAuto extends LinearOpMode {
 
     // Initialize poses
     private final Pose startPose = new Pose(61.5, 9, Math.toRadians(180)); // Start Pose of our robot.
-    private final Pose PGPPose = new Pose(49, 59.5, Math.toRadians(180)); // Middle (Second Set) of Artifacts from the Spike Mark.
+    private final Pose PGPPose = new Pose(49, 59.5+23, Math.toRadians(180)); // Middle (Second Set) of Artifacts from the Spike Mark.
     private final Pose GPPPose = new Pose(44, 35.5, Math.toRadians(180)); // Lowest (Third Set) of Artifacts from the Spike Mark.
 
     // Initialize variables for paths
@@ -96,6 +96,7 @@ public class BlueAuto extends LinearOpMode {
         log("Status", "Initialized");
         telemetry.update(); // Update driver station after logging
         yawServo.setPosition(0.36);
+
 //        colorSensor.setDelayMillis(350);
 
         // Wait for the game to start (driver presses START)
@@ -189,7 +190,7 @@ public class BlueAuto extends LinearOpMode {
                 break;
 
             case 8: // Moves to scoring pose
-                if (runtime.seconds() > 15.7){
+                if (runtime.seconds() > 15.5){
                     launchMotors.set(0.58);
                     path3();
                     setpathState(9);
@@ -197,7 +198,7 @@ public class BlueAuto extends LinearOpMode {
                 break;
 
             case 9: // Shoot balls no 4 and 5
-                if (runtime.seconds() > 18.2 && !follower.isBusy()){ // delay for shooting
+                if (runtime.seconds() > 19 && !follower.isBusy()){ // delay for shooting
                     launchServos.enable();
                     intakeServos.enableFrontIntake();
                     setpathState(10);
@@ -288,8 +289,8 @@ public class BlueAuto extends LinearOpMode {
     private void path3(){
         follower.setMaxPower(0.5); // move to scoring pos.
         PathChain scorePPG = follower.pathBuilder()
-                .addPath(new BezierLine(new Pose(20, 35.5, Math.toRadians(180)), new Pose(48, 48, Math.toRadians(180+116))))
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180+116))
+                .addPath(new BezierLine(new Pose(20, 35.5, Math.toRadians(180)), new Pose(144-84, 144-84, Math.toRadians(135))))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(135))
                 .build();
         follower.followPath(scorePPG);
     }
@@ -297,8 +298,8 @@ public class BlueAuto extends LinearOpMode {
     private void path4(){
         follower.setMaxPower(1);
         PathChain scorePGP = follower.pathBuilder()
-                .addPath(new BezierLine(new Pose(48, 48, Math.toRadians(180+116)), PGPPose))
-                .setLinearHeadingInterpolation(Math.toRadians(180+116), PGPPose.getHeading())
+                .addPath(new BezierLine(new Pose(144-84, 144-84, Math.toRadians(135)), PGPPose))
+                .setLinearHeadingInterpolation(Math.toRadians(135), PGPPose.getHeading())
                 .build();
         follower.followPath(scorePGP);
     }
@@ -306,7 +307,7 @@ public class BlueAuto extends LinearOpMode {
     private void path5(){
         follower.setMaxPower(0.2);
         PathChain pickupPGP = follower.pathBuilder()
-                .addPath(new BezierLine(PGPPose, new Pose(20, 59.5, Math.toRadians(180))))
+                .addPath(new BezierLine(PGPPose, new Pose(20, 59.5+23, Math.toRadians(180))))
                 .setLinearHeadingInterpolation(PGPPose.getHeading(), Math.toRadians(180))
                 .build();
         follower.followPath(pickupPGP);
@@ -315,8 +316,8 @@ public class BlueAuto extends LinearOpMode {
     private void path6(){
         follower.setMaxPower(0.5); // move to second scoring pos.
         PathChain scorePGP = follower.pathBuilder()
-                .addPath(new BezierLine(new Pose(20, 59.5, Math.toRadians(180)), new Pose(48, 72, Math.toRadians(180+125))))
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180+125))
+                .addPath(new BezierLine(new Pose(20, 59.5+23, Math.toRadians(180)), new Pose(144-96, 144-96, Math.toRadians(135))))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(135))
                 .build();
         follower.followPath(scorePGP);
     }

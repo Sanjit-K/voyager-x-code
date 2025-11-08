@@ -30,6 +30,7 @@ public class RedAuto extends LinearOpMode {
 
     // Initialize poses
     private final Pose startPose = new Pose(144 - 61.5, 9, Math.toRadians(180)); // Start Pose of our robot.
+    private final Pose PPGPose = new Pose (144 - 49, 59.5+23, Math.toRadians(180));
     private final Pose PGPPose = new Pose(144 - 49, 59.5, Math.toRadians(180)); // Middle (Second Set) of Artifacts from the Spike Mark.
     private final Pose GPPPose = new Pose(144 - 44, 35.5, Math.toRadians(180)); // Lowest (Third Set) of Artifacts from the Spike Mark.
 
@@ -95,7 +96,7 @@ public class RedAuto extends LinearOpMode {
         // Log completed initialization to Panels and driver station (custom log function)
         log("Status", "Initialized");
         telemetry.update(); // Update driver station after logging
-        yawServo.setPosition(0.23);
+        yawServo.setPosition(0.215);
 //        colorSensor.setDelayMillis(350);
 
         // Wait for the game to start (driver presses START)
@@ -189,15 +190,15 @@ public class RedAuto extends LinearOpMode {
                 break;
 
             case 8: // Moves to scoring pose
-                if (runtime.seconds() > 15.7){
-                    launchMotors.set(0.58);
+                if (runtime.seconds() > 15.5){
+                    launchMotors.set(0.585);
                     path3();
                     setpathState(9);
                 }
                 break;
 
             case 9: // Shoot balls no 4 and 5
-                if (runtime.seconds() > 18.2 && !follower.isBusy()){ // delay for shooting
+                if (runtime.seconds() > 19 && !follower.isBusy()){ // delay for shooting
                     launchServos.enable();
                     intakeServos.enableBackIntake();
                     setpathState(10);
@@ -260,7 +261,7 @@ public class RedAuto extends LinearOpMode {
      */
 
     private void presetLaunch(int ms) {
-        yawServo.setPosition(0.23);
+        yawServo.setPosition(0.215);
         launchMotors.set(0.65);
         sleep(ms);
         launchServos.enable();
@@ -286,10 +287,10 @@ public class RedAuto extends LinearOpMode {
         follower.followPath(pickupPPG);
     }
     private void path3(){
-        follower.setMaxPower(0.5); // move to scoring pos.
+        follower.setMaxPower(0.7); // move to scoring pos.
         PathChain scorePPG = follower.pathBuilder()
-                .addPath(new BezierLine(new Pose(144-20, 35.5, Math.toRadians(180)), new Pose(144-48, 48, Math.toRadians(180-116))))
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180-116))
+                .addPath(new BezierLine(new Pose(144-20, 35.5, Math.toRadians(180)), new Pose(84, 84, Math.toRadians(45))))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(45))
                 .build();
         follower.followPath(scorePPG);
     }
@@ -297,8 +298,8 @@ public class RedAuto extends LinearOpMode {
     private void path4(){
         follower.setMaxPower(1);
         PathChain scorePGP = follower.pathBuilder()
-                .addPath(new BezierLine(new Pose(144-48, 48, Math.toRadians(180-116)), PGPPose))
-                .setLinearHeadingInterpolation(Math.toRadians(180-116), PGPPose.getHeading())
+                .addPath(new BezierLine(new Pose(84, 84, Math.toRadians(45)), PPGPose))
+                .setLinearHeadingInterpolation(Math.toRadians(45), PPGPose.getHeading())
                 .build();
         follower.followPath(scorePGP);
     }
@@ -306,17 +307,17 @@ public class RedAuto extends LinearOpMode {
     private void path5(){
         follower.setMaxPower(0.2);
         PathChain pickupPGP = follower.pathBuilder()
-                .addPath(new BezierLine(PGPPose, new Pose(144-20, 59.5, Math.toRadians(180))))
-                .setLinearHeadingInterpolation(PGPPose.getHeading(), Math.toRadians(180))
+                .addPath(new BezierLine(PPGPose, new Pose(144-20, 59.5+23, Math.toRadians(180))))
+                .setLinearHeadingInterpolation(PPGPose.getHeading(), Math.toRadians(180))
                 .build();
         follower.followPath(pickupPGP);
     }
 
     private void path6(){
-        follower.setMaxPower(0.5); // move to second scoring pos.
+        follower.setMaxPower(0.7); // move to second scoring pos.
         PathChain scorePGP = follower.pathBuilder()
-                .addPath(new BezierLine(new Pose(144-20, 59.5, Math.toRadians(180)), new Pose(144-48, 72, Math.toRadians(180-125))))
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180-125))
+                .addPath(new BezierLine(new Pose(144-20, 59.5+23, Math.toRadians(180)), new Pose(96, 96, Math.toRadians(45))))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(45))
                 .build();
         follower.followPath(scorePGP);
     }
