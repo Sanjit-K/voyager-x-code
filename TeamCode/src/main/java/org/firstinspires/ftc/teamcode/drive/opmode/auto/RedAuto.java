@@ -12,8 +12,7 @@ import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.util.ElapsedTime;
-import org.firstinspires.ftc.robotcore.external.hardware.camera.BuiltinCameraDirection;
-import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+
 import org.firstinspires.ftc.teamcode.intake.IntakeServos;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.firstinspires.ftc.teamcode.turret.ColorSensor;
@@ -21,11 +20,6 @@ import org.firstinspires.ftc.teamcode.turret.LaunchMotors;
 import org.firstinspires.ftc.teamcode.turret.LaunchServos;
 import org.firstinspires.ftc.teamcode.turret.RobotHeading;
 import org.firstinspires.ftc.teamcode.turret.YawServo;
-import org.firstinspires.ftc.vision.VisionPortal;
-import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
-import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
-
-import java.util.List;
 
 @Autonomous(name = "Red Auto", group = "Opmode")
 @Configurable // Panels
@@ -35,20 +29,14 @@ public class RedAuto extends LinearOpMode {
     private final ElapsedTime runtime = new ElapsedTime();
 
     // Initialize poses
-    private final Pose startPose = new Pose(144-63, 9, Math.toRadians(180)); // Start Pose of our robot.
-    private final Pose scorePose = new Pose(144-72, 20, Math.toRadians(115)); // Scoring Pose of our robot. It is facing the goal at a 115 degree angle.
-    private final Pose PPGPose = new Pose(144-44, 83.5, Math.toRadians(0)); // Highest (First Set) of Artifacts from the Spike Mark.
-    private final Pose PGPPose = new Pose(144-49, 59.5, Math.toRadians(0)); // Middle (Second Set) of Artifacts from the Spike Mark.
-    private final Pose GPPPose = new Pose(144-44, 35.5, Math.toRadians(0)); // Lowest (Third Set) of Artifacts from the Spike Mark.
+    private final Pose startPose = new Pose(144 - 61.5, 9, Math.toRadians(180)); // Start Pose of our robot.
+    private final Pose PGPPose = new Pose(144 - 49, 59.5, Math.toRadians(180)); // Middle (Second Set) of Artifacts from the Spike Mark.
+    private final Pose GPPPose = new Pose(144 - 44, 35.5, Math.toRadians(180)); // Lowest (Third Set) of Artifacts from the Spike Mark.
 
     // Initialize variables for paths
 
     private PathChain grabPPG;
-    private PathChain scorePPG;
-    private PathChain grabPGP;
-    private PathChain scorePGP;
-    private PathChain grabGPP;
-    private PathChain scoreGPP;
+
 
 
 
@@ -58,18 +46,15 @@ public class RedAuto extends LinearOpMode {
     private Follower follower; // Pedro Pathing follower
     private TelemetryManager panelsTelemetry; // Panels telemetry
     private int pathStatePPG; // Current state machine value
-    private int pathStatePGP; // Current state machine value
-    private int pathStateGPP; // Current state machine value
+
 
     private YawServo yawServo;
     private LaunchMotors launchMotors;
     private LaunchServos launchServos;
     private IntakeServos intakeServos;
-    private RobotHeading robotHeading;
     private ColorSensor colorSensor;
     private boolean detected;
 
-    private int foundID; // Current state machine value, dictates which one to run
 
 
 
@@ -90,14 +75,6 @@ public class RedAuto extends LinearOpMode {
     }
 
     // a place to put your intake and shooting functions
-    public void intakeArtifacts() {
-        // Put your intake logic/functions here
-    }
-
-    public void shootArtifacts() {
-        // Put your shooting logic/functions here
-    }
-
 
     @Override
     public void runOpMode() {
@@ -114,19 +91,18 @@ public class RedAuto extends LinearOpMode {
         launchMotors = new LaunchMotors(hardwareMap, follower, "turretL", "turretR");
         colorSensor = new ColorSensor(hardwareMap, "color");
 
-        robotHeading = new RobotHeading(follower);
 
         // Log completed initialization to Panels and driver station (custom log function)
         log("Status", "Initialized");
         telemetry.update(); // Update driver station after logging
+        yawServo.setPosition(0.23);
+//        colorSensor.setDelayMillis(350);
 
         // Wait for the game to start (driver presses START)
         waitForStart();
         runtime.reset();
 
-        setpathStatePPG(0);
-        setpathStatePGP(0);
-        setpathStateGPP(0);
+        setpathState(0);
         runtime.reset();
 
         while (opModeIsActive()) {
@@ -135,10 +111,8 @@ public class RedAuto extends LinearOpMode {
             panelsTelemetry.update();
             currentPose = follower.getPose(); // Update the current pose
 
-            detected = colorSensor.detection();
+            detected = colorSensor.delayedDetection();
             updateStateMachine();
-
-
 
             // Log to Panels and driver station (custom log function)
             log("Elapsed", runtime.toString());
@@ -149,195 +123,134 @@ public class RedAuto extends LinearOpMode {
         }
     }
 
-
-    public void buildPathsPPG() {
-        // basically just plotting the points for the lines that score the PPG pattern
-
-
-        grabPPG = follower.pathBuilder() //
-                .addPath(new BezierLine(startPose, PPGPose))
-                .setLinearHeadingInterpolation(startPose.getHeading(), PPGPose.getHeading())
-                .build();
-
-        // Move to the scoring pose from the first artifact pickup pose
-        scorePPG = follower.pathBuilder()
-                .addPath(new BezierLine(PPGPose, scorePose))
-                .setLinearHeadingInterpolation(PPGPose.getHeading(), scorePose.getHeading())
-                .build();
-    }
-
-    public void buildPathsPGP() {
-        // basically just plotting the points for the lines that score the PGP pattern
-
-        // Move to the first artifact pickup pose from the start pose
-        grabPGP = follower.pathBuilder() // Changed from scorePGP to grabPGP
-                .addPath(new BezierLine(startPose, PGPPose))
-                .setLinearHeadingInterpolation(startPose.getHeading(), PGPPose.getHeading())
-                .build();
-
-        // Move to the scoring pose from the first artifact pickup pose
-        scorePGP = follower.pathBuilder()
-                .addPath(new BezierLine(PGPPose, scorePose))
-                .setLinearHeadingInterpolation(PGPPose.getHeading(), scorePose.getHeading())
-                .build();
-    }
-
-    public void buildPathsGPP() {
-        // basically just plotting the points for the lines that score the GPP pattern
-
-        // Move to the first artifact pickup pose from the start pose
-        grabGPP = follower.pathBuilder()
-                .addPath(new BezierLine(startPose, GPPPose))
-                .setLinearHeadingInterpolation(startPose.getHeading(), GPPPose.getHeading())
-                .build();
-
-        // Move to the scoring pose from the first artifact pickup pose
-        scoreGPP = follower.pathBuilder()
-                .addPath(new BezierLine(GPPPose, scorePose))
-                .setLinearHeadingInterpolation(GPPPose.getHeading(), scorePose.getHeading())
-                .build();
-    }
-
     //below is the state machine or each pattern
 
     public void updateStateMachine() {
         switch (pathStatePPG) {
-            case 0:
-                presetLaunch(500);
-                setpathStatePPG(1);
-                break;// Call the setter method
-            case 1:
+            case 0: // Shoots ball no 1
+                presetLaunch(300);
+                setpathState(1);
+                break;
+            case 1: // Moves servo to back intake position, enables back intake
                 if (runtime.seconds() > 2){
                     yawServo.back();
                     intakeServos.enableBackIntake();
-                    setpathStatePPG(2); // Call the setter method
+                    setpathState(2);
                 }
                 break;
-            case 2:
+            case 2: // Intakes ball no 2, stops servos when ball reaches color sensor
                 if (detected){
                     launchServos.disable();
                 }
-                if (runtime.seconds() > 4.75) {
-                    presetLaunch(300);
-                    setpathStatePPG(3);
+                if (runtime.seconds() > 4.8) {
+                    presetLaunch(300); // Launch ball no 2
+                    setpathState(3);
                 }
                 break;
-            case 3:
+            case 3: // Moves to front intake position, enables front intake
                 if (runtime.seconds() > 6){
                     yawServo.front();
                     sleep(300);
                     intakeServos.enableFrontIntake();
-                    setpathStatePPG(4);
+                    setpathState(4);
                 }
                 break;
-            case 4:
+            case 4: // Intakes ball no 3, stops servos when ball reaches color sensor
                 if (detected){
                     launchServos.disable();
                 }
-                if (runtime.seconds() > 8.75) {
-                    presetLaunch(200);
-                    setpathStatePPG(5);
+                if (runtime.seconds() > 8.8) {
+                    presetLaunch(300); // Shoots ball no 3
+                    setpathState(5);
                 }
                 break;
-            case 5: // First Actual Movement
-                if (runtime.seconds() > 10){
-                    launchMotors.set(0.0);
+            case 5: // Turns off launch motors, moves to first artifact pickup pose
+                if (runtime.seconds() > 10) {
                     yawServo.back();
                     path1();
                     intakeServos.enableBackIntake();
                     launchServos.enable();
-                    setpathStatePPG(6);
+                    setpathState(6);
                 }
                 break;
-            case 6:
+            case 6: // Slowly moves to intake balls
                 if (runtime.seconds() > 12){
                     path2();
-                    setpathStatePPG(7);
+                    setpathState(7);
                 }
                 break;
-            case 7:
+            case 7: // Waits until ball is detected to stop intake servos
                 if (detected){
-                    intakeServos.disableFrontWheels();
+                    sleep(200);
+                    intakeServos.disableBackWheels();
                     launchServos.disable();
-                    setpathStatePPG(8);
+                    setpathState(8);
                 }
                 break;
 
-            case 8:
-                if (runtime.seconds() > 14.5){
-                    launchMotors.set(0.54);
+            case 8: // Moves to scoring pose
+                if (runtime.seconds() > 15.7){
+                    launchMotors.set(0.58);
                     path3();
-                    setpathStatePPG(9);
+                    setpathState(9);
                 }
                 break;
 
-            case 9:
-                if (runtime.seconds() > 17){
+            case 9: // Shoot balls no 4 and 5
+                if (runtime.seconds() > 18.2 && !follower.isBusy()){ // delay for shooting
                     launchServos.enable();
-                    launchMotors.set(0.55);
-                    intakeServos.enableFrontIntake();
-                    setpathStatePPG(10);
+                    intakeServos.enableBackIntake();
+                    setpathState(10);
                 }
                 break;
 
-            case 10:
-                if (runtime.seconds() > 20){
-                    launchMotors.set(0.0);
-                    yawServo.front();
+            case 10: // Moves to second artifact pickup pose
+                if (runtime.seconds() > 20.7){
+                    yawServo.back();
                     path4();
-                    intakeServos.enableFrontIntake();
+                    intakeServos.enableBackIntake();
                     launchServos.enable();
-                    setpathStatePPG(11);
+                    setpathState(11);
                 }
                 break;
-            case 11:
-                if (runtime.seconds() > 22){
+            case 11: // Slowly moves to intake balls
+                if (runtime.seconds() > 22.2){
                     path5();
-                    setpathStatePPG(12);
+                    setpathState(12);
                 }
                 break;
 
-            case 12:
+            case 12: // Waits until ball is detected to stop intake servos
                 if (detected){
-                    intakeServos.disableFrontWheels();
+                    sleep(200);
+                    intakeServos.disableBackWheels();
                     launchServos.disable();
-                    setpathStatePPG(13);
+                    setpathState(13);
                 }
                 break;
 
-            case 13:
-                if (runtime.seconds() > 24.5){
-                    launchMotors.set(0.53);
+            case 13: // Moves to scoring pose
+                if (runtime.seconds() > 25.5){
+                    launchMotors.set(0.575);
                     path6();
-                    setpathStatePPG(14);
+                    setpathState(14);
                 }
                 break;
 
-            case 14:
-                if (runtime.seconds() > 27){
+            case 14: // Shoots ball no 6 and 7
+                if (runtime.seconds() > 27.5 && !follower.isBusy()){
                     launchServos.enable();
-                    launchMotors.set(0.54);
-                    intakeServos.enableFrontIntake();
-                    setpathStatePPG(15);
+                    intakeServos.enableBackIntake();
+                    setpathState(15);
                 }
-
-
 
         }
     }
 
 
     // Setter methods for pathState variables placed at the class level
-    void setpathStatePPG(int newPathState) {
+    void setpathState(int newPathState) {
         this.pathStatePPG = newPathState;
-    }
-
-    void setpathStatePGP(int newPathState) {
-        this.pathStatePGP = newPathState;
-    }
-
-    void setpathStateGPP(int newPathState) {
-        this.pathStateGPP = newPathState;
     }
 
 
@@ -347,8 +260,8 @@ public class RedAuto extends LinearOpMode {
      */
 
     private void presetLaunch(int ms) {
-        yawServo.setPosition(0.43);
-        launchMotors.set(0.61);
+        yawServo.setPosition(0.23);
+        launchMotors.set(0.65);
         sleep(ms);
         launchServos.enable();
 
@@ -356,6 +269,7 @@ public class RedAuto extends LinearOpMode {
 
 
     private void path1(){
+        follower.setMaxPower(1);
         grabPPG = follower.pathBuilder() //
                 .addPath(new BezierLine(startPose, GPPPose))
                 .setLinearHeadingInterpolation(startPose.getHeading(), GPPPose.getHeading())
@@ -364,18 +278,18 @@ public class RedAuto extends LinearOpMode {
     }
 
     private void path2(){
-        follower.setMaxPower(0.15);
+        follower.setMaxPower(0.2);
         PathChain pickupPPG = follower.pathBuilder()
-                .addPath(new BezierLine(GPPPose, new Pose(144-20, 35.5, Math.toRadians(0))))
-                .setLinearHeadingInterpolation(GPPPose.getHeading(), Math.toRadians(0))
+                .addPath(new BezierLine(GPPPose, new Pose(144-20, 35.5, Math.toRadians(180))))
+                .setLinearHeadingInterpolation(GPPPose.getHeading(), Math.toRadians(180))
                 .build();
         follower.followPath(pickupPPG);
     }
     private void path3(){
-        follower.setMaxPower(0.5);
+        follower.setMaxPower(0.5); // move to scoring pos.
         PathChain scorePPG = follower.pathBuilder()
-                .addPath(new BezierLine(new Pose(144-20, 35.5, Math.toRadians(0)), new Pose(144-48, 48, Math.toRadians(0+110))))
-                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0+110))
+                .addPath(new BezierLine(new Pose(144-20, 35.5, Math.toRadians(180)), new Pose(144-48, 48, Math.toRadians(180-116))))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180-116))
                 .build();
         follower.followPath(scorePPG);
     }
@@ -383,26 +297,26 @@ public class RedAuto extends LinearOpMode {
     private void path4(){
         follower.setMaxPower(1);
         PathChain scorePGP = follower.pathBuilder()
-                .addPath(new BezierLine(new Pose(144-48, 48, Math.toRadians(0+110)), PGPPose))
-                .setLinearHeadingInterpolation(Math.toRadians(0+110), PGPPose.getHeading())
+                .addPath(new BezierLine(new Pose(144-48, 48, Math.toRadians(180-116)), PGPPose))
+                .setLinearHeadingInterpolation(Math.toRadians(180-116), PGPPose.getHeading())
                 .build();
         follower.followPath(scorePGP);
     }
 
     private void path5(){
-        follower.setMaxPower(0.15);
+        follower.setMaxPower(0.2);
         PathChain pickupPGP = follower.pathBuilder()
-                .addPath(new BezierLine(PGPPose, new Pose(144-20, 59.5, Math.toRadians(0))))
-                .setLinearHeadingInterpolation(PGPPose.getHeading(), Math.toRadians(0))
+                .addPath(new BezierLine(PGPPose, new Pose(144-20, 59.5, Math.toRadians(180))))
+                .setLinearHeadingInterpolation(PGPPose.getHeading(), Math.toRadians(180))
                 .build();
         follower.followPath(pickupPGP);
     }
 
     private void path6(){
-        follower.setMaxPower(0.5);
+        follower.setMaxPower(0.5); // move to second scoring pos.
         PathChain scorePGP = follower.pathBuilder()
-                .addPath(new BezierLine(new Pose(144-20, 59.5, Math.toRadians(0)), new Pose(144-48, 72, Math.toRadians(0+125))))
-                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0+125))
+                .addPath(new BezierLine(new Pose(144-20, 59.5, Math.toRadians(180)), new Pose(144-48, 72, Math.toRadians(180-125))))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180-125))
                 .build();
         follower.followPath(scorePGP);
     }

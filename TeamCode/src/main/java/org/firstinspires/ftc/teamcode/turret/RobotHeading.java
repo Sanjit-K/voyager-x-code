@@ -8,21 +8,23 @@ import com.pedropathing.geometry.BezierLine;
 public class RobotHeading {
     private final Follower follower;
 
-    private final double goalX = 0;
-    private final double goalY = 144;
+    private double goalX;
+    private double goalY;
 
-    public RobotHeading(Follower follower) {
+    public RobotHeading(Follower follower, int goalX, int goalY) {
+        this.goalX = goalX;
+        this.goalY = goalY;
         this.follower = follower;
     }
 
-    public void aimAtGoal() {
+    public void aimAtGoal(boolean backward) {
         // Current robot pose
         Pose robotPose = follower.getPose();
 
         // Calculate heading to goal
         double dx = goalX - robotPose.getX() + 2; // slight offset to avoid zero-length path
         double dy = goalY - robotPose.getY() + 2;
-        double desiredHeading = Math.atan2(dy, dx) + Math.PI;
+        double desiredHeading = Math.atan2(dy, dx) + (backward ? Math.PI : 0);
 
         // Make final position move slightly to the left to ensure the path has motion
         Pose adjusted = new Pose(robotPose.getX() + 2, robotPose.getY() + 2, desiredHeading);
@@ -31,7 +33,7 @@ public class RobotHeading {
         // Path to change heading
         PathChain faceGoalPath = follower.pathBuilder()
                 .addPath(new BezierLine(robotPose, adjusted))
-                .setLinearHeadingInterpolation(robotPose.getHeading(), -desiredHeading, 0.2)
+                .setLinearHeadingInterpolation(robotPose.getHeading(), desiredHeading, 0.1)
                 .build();
 
 

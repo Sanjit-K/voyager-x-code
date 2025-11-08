@@ -87,7 +87,7 @@ public class BlueTeleOp extends OpMode {
         } catch (Exception e) {
             yawServo = null;
         }
-        robotHeading = new RobotHeading(follower);
+        robotHeading = new RobotHeading(follower, 0, 144);
         if (yawServo != null) yawServo.back();
 
         // Color sensor is optional
@@ -100,6 +100,7 @@ public class BlueTeleOp extends OpMode {
         }
 
         powerNudgeTimer.reset();
+        colorSensor.setDelayMillis(250);
     }
 
     @Override
@@ -129,7 +130,14 @@ public class BlueTeleOp extends OpMode {
             // Aim-at-goal trigger MOVED: Share → G1 Left Stick Button
             if (gamepad1.leftStickButtonWasPressed()) {
                 if (robotHeading != null) {
-                    robotHeading.aimAtGoal();
+                    robotHeading.aimAtGoal(true);
+                    automatedDrive = true;
+                }
+            }
+
+            if (gamepad1.rightStickButtonWasPressed()){
+                if (robotHeading != null) {
+                    robotHeading.aimAtGoal(false);
                     automatedDrive = true;
                 }
             }

@@ -166,7 +166,6 @@ public class BlueAuto extends LinearOpMode {
                 break;
             case 5: // Turns off launch motors, moves to first artifact pickup pose
                 if (runtime.seconds() > 10) {
-                    launchMotors.set(0.0);
                     yawServo.front();
                     path1();
                     intakeServos.enableFrontIntake();
