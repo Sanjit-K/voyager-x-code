@@ -129,7 +129,7 @@ public class RedAuto extends LinearOpMode {
     public void updateStateMachine() {
         switch (pathStatePPG) {
             case 0: // Shoots ball no 1
-                presetLaunch(300);
+                presetLaunch(300, 0.65);
                 setpathState(1);
                 break;
             case 1: // Moves servo to back intake position, enables back intake
@@ -144,7 +144,7 @@ public class RedAuto extends LinearOpMode {
                     launchServos.disable();
                 }
                 if (runtime.seconds() > 4.8) {
-                    presetLaunch(300); // Launch ball no 2
+                    presetLaunch(300, 0.65); // Launch ball no 2
                     setpathState(3);
                 }
                 break;
@@ -161,7 +161,7 @@ public class RedAuto extends LinearOpMode {
                     launchServos.disable();
                 }
                 if (runtime.seconds() > 8.8) {
-                    presetLaunch(300); // Shoots ball no 3
+                    presetLaunch(300, 0.65); // Shoots ball no 3
                     setpathState(5);
                 }
                 break;
@@ -232,7 +232,7 @@ public class RedAuto extends LinearOpMode {
 
             case 13: // Moves to scoring pose
                 if (runtime.seconds() > 25.5){
-                    launchMotors.set(0.575);
+                    launchMotors.set(0.57);
                     path6();
                     setpathState(14);
                 }
@@ -260,9 +260,9 @@ public class RedAuto extends LinearOpMode {
      * start the AprilTag processor.
      */
 
-    private void presetLaunch(int ms) {
+    private void presetLaunch(int ms, double power) {
         yawServo.setPosition(0.215);
-        launchMotors.set(0.65);
+        launchMotors.set(power);
         sleep(ms);
         launchServos.enable();
 

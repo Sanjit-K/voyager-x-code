@@ -191,7 +191,7 @@ public class BlueAuto extends LinearOpMode {
 
             case 8: // Moves to scoring pose
                 if (runtime.seconds() > 15.5){
-                    launchMotors.set(0.58);
+                    launchMotors.set(0.575);
                     path3();
                     setpathState(9);
                 }
@@ -232,7 +232,7 @@ public class BlueAuto extends LinearOpMode {
 
             case 13: // Moves to scoring pose
                 if (runtime.seconds() > 25.5){
-                    launchMotors.set(0.575);
+                    launchMotors.set(0.57);
                     path6();
                     setpathState(14);
                 }
@@ -289,8 +289,8 @@ public class BlueAuto extends LinearOpMode {
     private void path3(){
         follower.setMaxPower(0.5); // move to scoring pos.
         PathChain scorePPG = follower.pathBuilder()
-                .addPath(new BezierLine(new Pose(20, 35.5, Math.toRadians(180)), new Pose(144-84, 144-84, Math.toRadians(135))))
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(135))
+                .addPath(new BezierLine(new Pose(20, 35.5, Math.toRadians(180)), new Pose(144-84, 84, Math.toRadians(180+135))))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180+135))
                 .build();
         follower.followPath(scorePPG);
     }
@@ -298,8 +298,8 @@ public class BlueAuto extends LinearOpMode {
     private void path4(){
         follower.setMaxPower(1);
         PathChain scorePGP = follower.pathBuilder()
-                .addPath(new BezierLine(new Pose(144-84, 144-84, Math.toRadians(135)), PGPPose))
-                .setLinearHeadingInterpolation(Math.toRadians(135), PGPPose.getHeading())
+                .addPath(new BezierLine(new Pose(144-84, 84, Math.toRadians(180+135)), PGPPose))
+                .setLinearHeadingInterpolation(Math.toRadians(180+135), PGPPose.getHeading())
                 .build();
         follower.followPath(scorePGP);
     }
@@ -316,8 +316,8 @@ public class BlueAuto extends LinearOpMode {
     private void path6(){
         follower.setMaxPower(0.5); // move to second scoring pos.
         PathChain scorePGP = follower.pathBuilder()
-                .addPath(new BezierLine(new Pose(20, 59.5+23, Math.toRadians(180)), new Pose(144-96, 144-96, Math.toRadians(135))))
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(135))
+                .addPath(new BezierLine(new Pose(20, 59.5+23, Math.toRadians(180)), new Pose(144-96, 96, Math.toRadians(180+135))))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180+135))
                 .build();
         follower.followPath(scorePGP);
     }

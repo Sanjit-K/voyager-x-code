@@ -4,7 +4,6 @@ import com.bylazar.configurables.annotations.Configurable;
 import com.bylazar.telemetry.PanelsTelemetry;
 import com.bylazar.telemetry.TelemetryManager;
 import com.pedropathing.follower.Follower;
-import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -21,24 +20,16 @@ import org.firstinspires.ftc.teamcode.turret.TurretConstants;
 
 @Configurable
 @TeleOp
-public class BlueTeleOp extends OpMode {
+public class BluePresetTele extends OpMode {
     private Follower follower;
-    public static Pose startingPose = new Pose(48, 72, Math.toRadians(180+122));
+    public static Pose startingPose = new Pose(60, 135, Math.toRadians(180));
     private boolean automatedDrive;
     private TelemetryManager telemetryM;
     private ColorSensor colorSensor;
 
     private double turretPower = 0.60;
-    private boolean shootersLockedOn = true;
-    private boolean turretSpinning   = true;
-    private boolean wasLocked = false;
-    private Pose lockPose = null;
-
-    // Lock mode using Tuning.java pattern
-    private static final double LOCK_DISTANCE = 0.1; // Small oscillation distance
-    private com.pedropathing.paths.Path lockForwards;
-    private com.pedropathing.paths.Path lockBackwards;
-    private boolean lockForward = true;
+    private boolean turretSpinning = false;         // shooters running?
+    private boolean shootersLockedOn = false;       // set true after touchpad press (“never off”)
 
     // Intake/turret helpers and state
     private YawServo yawServo;
@@ -110,11 +101,12 @@ public class BlueTeleOp extends OpMode {
 
         powerNudgeTimer.reset();
         colorSensor.setDelayMillis(250);
-        lockPose = startingPose;
     }
 
     @Override
-    public void start() {follower.startTeleopDrive();}
+    public void start() {
+        follower.startTeleopDrive();
+    }
 
     @Override
     public void loop() {
@@ -125,11 +117,16 @@ public class BlueTeleOp extends OpMode {
         turretConstants.update();
 
         // Early exit back to manual when an automated routine finishes
+        if (automatedDrive && !follower.isBusy()) {
+            follower.startTeleopDrive();
+            automatedDrive = false;
+        }
 
         // =====================  GAMEPAD 1 (DRIVE)  =====================
         // DRIVE LOCK (hold): G1 Left Trigger — lock robot in place while held
         boolean g1Locked = gamepad1.left_trigger > 0.5;
 
+        if (!automatedDrive) {
             // Aim-at-goal trigger MOVED: Share → G1 Left Stick Button
             if (gamepad1.leftStickButtonWasPressed()) {
                 if (robotHeading != null) {
@@ -145,63 +142,18 @@ public class BlueTeleOp extends OpMode {
                 }
             }
 
-        // Field-centric drive with alliance offset, suppressed if locked
-        if (g1Locked) {
-            if (!wasLocked) {
-                // Just entered lock: capture pose, activate PIDs, create oscillating paths
-                lockPose = follower.getPose();
-
-                // Activate both translational and heading PIDs (like Tuning.java)
-                follower.deactivateAllPIDFs();
-                follower.activateTranslational();
-                follower.activateHeading();
-
-                // Create small oscillating paths to keep PIDs engaged
-                // Using diagonal movement to engage both X and Y PIDs
-                Pose lockStart = new Pose(lockPose.getX(), lockPose.getY(), lockPose.getHeading());
-                Pose lockEnd = new Pose(
-                    lockPose.getX() + LOCK_DISTANCE,
-                    lockPose.getY() + LOCK_DISTANCE,
-                    lockPose.getHeading()
-                );
-
-                lockForwards = new com.pedropathing.paths.Path(new BezierLine(lockStart, lockEnd));
-                lockForwards.setConstantHeadingInterpolation(lockPose.getHeading());
-
-                lockBackwards = new com.pedropathing.paths.Path(new BezierLine(lockEnd, lockStart));
-                lockBackwards.setConstantHeadingInterpolation(lockPose.getHeading());
-
-                follower.followPath(lockForwards);
-                lockForward = true;
-                wasLocked = true;
+            // Field-centric drive with alliance offset, suppressed if locked
+            if (g1Locked) {
+                follower.setTeleOpDrive(0, 0, 0, false, offset);
             } else {
-                // While locked: oscillate between forward/backward to keep PIDs fighting pushes
-                if (!follower.isBusy()) {
-                    if (lockForward) {
-                        lockForward = false;
-                        follower.followPath(lockBackwards);
-                    } else {
-                        lockForward = true;
-                        follower.followPath(lockForwards);
-                    }
-                }
+                follower.setTeleOpDrive(
+                        -gamepad1.left_stick_y,
+                        -gamepad1.left_stick_x,
+                        -gamepad1.right_stick_x,
+                        false,
+                        offset
+                );
             }
-        } else {
-            // not locked: normal teleop drive
-            if (wasLocked) {
-                // Exiting lock mode: restore normal teleop drive
-                follower.activateAllPIDFs();
-                follower.startTeleopDrive();
-            }
-
-            follower.setTeleOpDrive(
-                    -gamepad1.left_stick_y,
-                    -gamepad1.left_stick_x,
-                    -gamepad1.right_stick_x,
-                    false,
-                    offset
-            );
-            wasLocked = false;
         }
 
         // =====================  GAMEPAD 2 (ACTIONS)  =====================
@@ -346,4 +298,3 @@ public class BlueTeleOp extends OpMode {
         telemetryM.update(telemetry);
     }
 }
-
