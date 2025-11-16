@@ -57,36 +57,7 @@ public class Constants {
                     RevHubOrientationOnRobot.LogoFacingDirection.LEFT,
                     RevHubOrientationOnRobot.UsbFacingDirection.UP));
 
-    // -------------------- Alliance offsets (field-centric) --------------------
-    public static final double ALLIANCE_OFFSET_BLUE = Math.toRadians(180.0);
-    public static final double ALLIANCE_OFFSET_RED  = Math.toRadians(0.0);
 
-    // -------------------- Common max-power presets (used in Auto) --------------------
-    public static final double DEFAULT_MAX_POWER = 1.0;   // fast travel
-    public static final double DRIVE_MAX_POWER   = 0.50;  // controlled approach / scoring
-    public static final double PICKUP_MAX_POWER  = 0.15;  // slow intake sweep
-
-    // -------------------- Auto → TeleOp pose handoff --------------------
-    /** Set by Auto at the end so TeleOp can start from the true end pose. */
-    public static Pose lastAutoEndPose = null;
-
-    /** A sensible TeleOp fallback if Auto didn’t set a pose (e.g., skipped or stopped early). */
-    public static final Pose DEFAULT_TELE_START_BLUE = new Pose(62, 33, Math.toRadians(180));
-    public static final Pose DEFAULT_TELE_START_RED  = new Pose(62, 33, Math.toRadians(0));
-
-    /**
-     * Convenience: in TeleOp.init(), call:
-     * {@code Constants.applyTeleStartPose(follower, Constants.DEFAULT_TELE_START_BLUE);}
-     * or RED variant as needed.
-     */
-    public static void applyTeleStartPose(Follower follower, Pose fallback) {
-        Pose start = (lastAutoEndPose != null) ? lastAutoEndPose : fallback;
-        if (start != null && follower != null) {
-            follower.setStartingPose(start);
-        }
-    }
-
-    // -------------------- Follower factory --------------------
     public static Follower createFollower(HardwareMap hardwareMap){
         return new FollowerBuilder(followerConstants, hardwareMap)
                 .threeWheelIMULocalizer(localizerConstants)
