@@ -11,7 +11,10 @@ import org.firstinspires.ftc.teamcode.drive.opmode.teleop.functions.LockMode;
 import org.firstinspires.ftc.teamcode.intake.BarIntake;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.firstinspires.ftc.teamcode.shooting.KickerServo;
+import org.firstinspires.ftc.teamcode.shooting.Shooter;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
+import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
+import org.firstinspires.ftc.teamcode.sorting.DistanceSensor;
 
 
 @Configurable
@@ -23,13 +26,23 @@ public class BlueTeleOp extends OpMode {
     private LockMode lockMode;
     private BarIntake intake;
     private KickerServo kickerServo;
+    private Shooter shooter;
+    private ColorSensor colorSensor;
+    private DistanceSensor distanceSensor;
     private Spindexer spindexer;
     private boolean intakeOn = false;
     private boolean outtakeOn = false;
+    private boolean shooterOn = false;
+    private char detectedColor = '_';
+    private boolean detected = false;
 
     private final double offset = Math.toRadians(180.0); // Alliance POV offset: 180 = Blue, 0 = Red
 
 
+
+    /* Debugging stuff */
+    private int detectedCount = 0;
+    private String colorLog;
     private boolean toggle(boolean currentState, Runnable enableAction, Runnable disableAction) {
         if (!currentState) enableAction.run(); else disableAction.run();
         return !currentState;
@@ -42,6 +55,9 @@ public class BlueTeleOp extends OpMode {
         lockMode = new LockMode(follower);
         intake = new BarIntake(hardwareMap, "intakeMotor", false);
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
+        shooter = new Shooter(hardwareMap, "shooterMotor", false);
+        colorSensor = new ColorSensor(hardwareMap, "colorSensor");
+        distanceSensor = new DistanceSensor(hardwareMap, "distanceSensor");
         spindexer = new Spindexer(hardwareMap, "spindexer");
 
 
@@ -95,8 +111,31 @@ public class BlueTeleOp extends OpMode {
             kickerServo.normal();
         }
 
+        if (gamepad1.rightBumperWasPressed()){
+            shooterOn = toggle(shooterOn,
+                    shooter::on,
+                    shooter::off
+            );
+        }
+
+        detectedColor = colorSensor.detection();
+        detected = distanceSensor.isDetected();
+
+        if (detectedColor != '_'){
+            colorLog += detectedColor;
+        }
+
+        if (detected){
+            detectedCount++;
+        }
+
+
 
         // Update telemetry
+        telemetryM.debug("Deteced Color: ", detectedColor);
+        telemetryM.debug("Detected Object: ", detected);
+        telemetryM.debug("Detection Log: ", colorLog);
+        telemetryM.debug("Detected Count: ", detectedCount);
         telemetryM.update(telemetry);
     }
 }

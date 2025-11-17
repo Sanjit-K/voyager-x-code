@@ -5,7 +5,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 
 public class Spindexer {
     private final Servo spindexerServo;
-    private String[] tracking = {"_", "_", "_"}; // "_" = empty, "P" = purple, "G" = green
+    private char[] tracking = {'_', '_', '_'}; // '_' = empty, 'P' = purple, 'G' = green
     private int intakeIndex = 0; // Index of the current position (0, 1, or 2)
 
     // values below are placeholders
