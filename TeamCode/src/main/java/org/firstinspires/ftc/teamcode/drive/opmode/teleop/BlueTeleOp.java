@@ -158,6 +158,7 @@ public class BlueTeleOp extends OpMode {
         telemetryM.debug("Detected Object: ", detected);
         telemetryM.debug("Detection Log: ", colorLog);
         telemetryM.debug("Detected Count: ", detectedCount);
+        telemetryM.debug("Spindexer Position: ", spindexer.getPosition());
         telemetryM.update(telemetry);
     }
 }
