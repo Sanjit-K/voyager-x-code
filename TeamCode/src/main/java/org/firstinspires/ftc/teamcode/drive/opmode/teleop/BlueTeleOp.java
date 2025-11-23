@@ -35,6 +35,7 @@ public class BlueTeleOp extends OpMode {
     private boolean shooterOn = false;
     private char detectedColor = '_';
     private boolean detected = false;
+    private int shootIndex = 0;
 
     private final double offset = Math.toRadians(180.0); // Alliance POV offset: 180 = Blue, 0 = Red
 
@@ -60,6 +61,8 @@ public class BlueTeleOp extends OpMode {
         distanceSensor = new DistanceSensor(hardwareMap, "distanceSensor");
         spindexer = new Spindexer(hardwareMap, "spindexer");
 
+
+        spindexer.setShootIndex(shootIndex);
 
         follower.setStartingPose(startingPose);
 
@@ -116,6 +119,24 @@ public class BlueTeleOp extends OpMode {
                     shooter::on,
                     shooter::off
             );
+        }
+
+        if (gamepad1.dpadRightWasPressed()){
+            spindexer.advanceIntake();
+        }
+
+        if (gamepad1.dpadLeftWasPressed()){
+            spindexer.retreatIntake();
+        }
+
+        if (gamepad1.dpadUpWasPressed()){
+            shootIndex = (shootIndex + 1) % 3;
+            spindexer.setShootIndex(shootIndex);
+        }
+
+        if (gamepad1.dpadDownWasPressed()) {
+            shootIndex = (shootIndex + 2) % 3; // equivalent to (index - 1 + 3) % 3
+            spindexer.setShootIndex(shootIndex);
         }
 
         detectedColor = colorSensor.detection();
