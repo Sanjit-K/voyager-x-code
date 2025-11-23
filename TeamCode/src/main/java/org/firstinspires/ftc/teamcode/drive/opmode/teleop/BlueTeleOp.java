@@ -35,6 +35,7 @@ public class BlueTeleOp extends OpMode {
     private boolean shooterOn = false;
     private char detectedColor = '_';
     private boolean detected = false;
+    private int intakeIndex = 0;
     private int shootIndex = 0;
 
     private final double offset = Math.toRadians(180.0); // Alliance POV offset: 180 = Blue, 0 = Red
@@ -62,7 +63,7 @@ public class BlueTeleOp extends OpMode {
         spindexer = new Spindexer(hardwareMap, "spindexer");
 
 
-        spindexer.setShootIndex(shootIndex);
+        spindexer.setIntakeIndex(intakeIndex);
 
         follower.setStartingPose(startingPose);
 

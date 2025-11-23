@@ -9,12 +9,12 @@ public class Spindexer {
     private int intakeIndex = 0; // Index of the current position (0, 1, or 2)
 
     // values below are placeholders
-    private double intake0 = 0.5; // Position for index 0
-    private double intake1 = 0.8333; // Position for index 1
-    private double intake2 = 0.1667; // Position for index 2
-    private double shoot0 = 0.0;  // Position for shooting index 0 ball
-    private double shoot1 = 0.3333;  // Position for shooting index 1 ball
-    private double shoot2 = 0.6667;  // Position for shooting index 2 ball
+    private double shoot0 = 0.5; // Position for index 0
+    private double shoot1 = 0.8333; // Position for index 1
+    private double shoot2 = 0.1667; // Position for index 2
+    private double intake0 = 0.0;  // Position for shooting index 0 ball
+    private double intake1 = 0.3333;  // Position for shooting index 1 ball
+    private double intake2 = 0.6667;  // Position for shooting index 2 ball
 
 
     public Spindexer(HardwareMap hardwareMap, String servoName) {
@@ -51,6 +51,7 @@ public class Spindexer {
     }
 
     public void setShootIndex(int index){
+        index %= 3;
         switch (index) {
             case 0:
                 setPosition(shoot0);
@@ -68,5 +69,18 @@ public class Spindexer {
         return intakeIndex;
     }
 
+    public double getPosition() {
+        return spindexerServo.getPosition();
+    }
+
+    public void incrementPosition(double amount) {
+        double newPosition = Math.min(1.0, spindexerServo.getPosition() + amount);
+        setPosition(newPosition);
+    }
+
+    public void decrementPosition(double amount) {
+        double newPosition = Math.max(0.0, spindexerServo.getPosition() - amount);
+        setPosition(newPosition);
+    }
 
 }
