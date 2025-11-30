@@ -27,6 +27,12 @@ public class Spindexer {
         spindexerServo.setPosition(position);
     }
 
+    public void fillUp(){
+        for(int i = 0; i<3;i++){
+            filled[i] = '#';
+        }
+    }
+
     public void setIntakeIndex(int index){
         intakeIndex = index % 3;
         switch (intakeIndex) {

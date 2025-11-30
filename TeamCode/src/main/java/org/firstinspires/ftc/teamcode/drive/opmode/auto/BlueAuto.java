@@ -48,8 +48,8 @@ public class BlueAuto extends LinearOpMode {
     // 3-shot volley state
     private boolean threeShotActive = false;
     private final ElapsedTime threeShotTimer = new ElapsedTime();
-    private static final int SHOOT_DELAY = 400;
-    private static final int KICK_DELAY = 300;
+    private static final int SHOOT_DELAY = 500;
+    private static final int KICK_DELAY = 400;
     private static final int NORMAL_DELAY = 250;
     private static final int FULL_CYCLE = SHOOT_DELAY + KICK_DELAY + NORMAL_DELAY;
 
@@ -94,10 +94,13 @@ public class BlueAuto extends LinearOpMode {
     private int[][] volleyOrders;      // [volleyIndex][ball# 0..2]
     private int currentVolley = 0;
 
+    private final double SLOW_DOWN = 0.2;
+
 
 
     private int intakeIndex = 0;
     private boolean rightPos = false;
+    private boolean spindexAllowed = false;
 
     // Auto intake / spindexer detection (ported from TeleOp)
     private boolean detected = false;
@@ -128,13 +131,14 @@ public class BlueAuto extends LinearOpMode {
         follower = Constants.createFollower(hardwareMap);
 
         // Start pose = first point of shootpreset path
-        follower.setStartingPose(new Pose(21.257, 124.800, Math.toRadians(144)));
+        follower.setStartingPose(new Pose(13.336, -16.531, 0.963));
 
         // Subsystems
         intake = new BarIntake(hardwareMap, "intakeMotor", false);
         shooter = new Shooter(hardwareMap, "shooterMotor", false);
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
         spindexer = new Spindexer(hardwareMap, "spindexer");
+        shooter.setPower(0.75);
 
         distanceSensor = hardwareMap.get(DigitalChannel.class, "distanceSensor");
         distanceSensor.setMode(DigitalChannel.Mode.INPUT);
@@ -171,7 +175,7 @@ public class BlueAuto extends LinearOpMode {
 
             if (detected && !spindexer.isFull()
                     && detectedTimer.milliseconds() > DETECTED_DELAY
-                    && !threeShotActive) {
+                    && !threeShotActive && spindexAllowed) {
 
                 spindexer.setColorAtPos('#');
 
@@ -180,7 +184,6 @@ public class BlueAuto extends LinearOpMode {
                     rightPos = false;
                 } else {
                     spindexer.setShootIndex(2);
-                    rightPos = true;
                 }
 
                 detectedTimer.reset();
@@ -223,6 +226,11 @@ public class BlueAuto extends LinearOpMode {
         int firstSlot  = order[0];
         int secondSlot = order[1];
         int thirdSlot  = order[2];
+        spindexAllowed = false;
+
+
+
+        intake.spinOuttake();
 
         // ball 1
         if (t > 0 && t < SHOOT_DELAY - fd) {
@@ -257,8 +265,9 @@ public class BlueAuto extends LinearOpMode {
             kickerServo.normal();
         }
 
-        if (t > 3 * FULL_CYCLE - fd) {
+        if (t > 3 * FULL_CYCLE + 200 - fd) {
             intakeIndex = 0;
+            intake.spinIntake();
             spindexer.setIntakeIndex(intakeIndex);
             threeShotActive = false;
             rightPos = false;
@@ -298,7 +307,8 @@ public class BlueAuto extends LinearOpMode {
                         return;
                     } else {
                         // volley 0 just finished this loop → move to lane 1
-                        spindexer.setIntakeIndex(0);
+                        spindexAllowed = true;
+                        follower.setMaxPower(0.8);
                         follower.followPath(paths.preparepickup1);
                         setPathState(2);
                     }
@@ -307,6 +317,7 @@ public class BlueAuto extends LinearOpMode {
 
             case 2:
                 if (!follower.isBusy()) {
+                    follower.setMaxPower(SLOW_DOWN);
                     follower.followPath(paths.pickup1);
                     setPathState(3);
                 }
@@ -314,13 +325,14 @@ public class BlueAuto extends LinearOpMode {
 
             case 3:
                 if (!follower.isBusy()) {
-                    follower.followPath(paths.releasegate);
+
                     setPathState(4);
                 }
                 break;
 
             case 4:
                 if (!follower.isBusy()) {
+                    follower.setMaxPower(1);
                     follower.followPath(paths.shoot1);
                     setPathState(5);
                 }
@@ -332,7 +344,7 @@ public class BlueAuto extends LinearOpMode {
                         startThreeShotVolley(1);
                         return;
                     } else {
-                        spindexer.setIntakeIndex(0);
+                        spindexAllowed = true;
                         follower.followPath(paths.preparepickup2);
                         setPathState(6);
                     }
@@ -341,6 +353,7 @@ public class BlueAuto extends LinearOpMode {
 
             case 6:
                 if (!follower.isBusy()) {
+                    follower.setMaxPower(SLOW_DOWN);
                     follower.followPath(paths.pickup2);
                     setPathState(7);
                 }
@@ -348,6 +361,7 @@ public class BlueAuto extends LinearOpMode {
 
             case 7:
                 if (!follower.isBusy()) {
+                    follower.setMaxPower(1);
                     follower.followPath(paths.shoot2);
                     setPathState(8);
                 }
@@ -359,7 +373,7 @@ public class BlueAuto extends LinearOpMode {
                         startThreeShotVolley(2);
                         return;
                     } else {
-                        spindexer.setIntakeIndex(0);
+                        spindexAllowed = true;
                         follower.followPath(paths.preparepickup3);
                         setPathState(9);
                     }
@@ -368,6 +382,7 @@ public class BlueAuto extends LinearOpMode {
 
             case 9:
                 if (!follower.isBusy()) {
+                    follower.setMaxPower(SLOW_DOWN);
                     follower.followPath(paths.pickup3);
                     setPathState(10);
                 }
@@ -375,6 +390,7 @@ public class BlueAuto extends LinearOpMode {
 
             case 10:
                 if (!follower.isBusy()) {
+                    follower.setMaxPower(1);
                     follower.followPath(paths.shoot3);
                     setPathState(11);
                 }
@@ -412,45 +428,45 @@ public class BlueAuto extends LinearOpMode {
 
         // Start of auto
         public static final Pose START_POSE = new Pose(
-                21.257, 124.800, Math.toRadians(144)
+                13.336, -16.531, 0.963
         );
 
         // Common shooting pose
         public static final Pose SHOOT_POSE = new Pose(
-                43.543, 104.743, Math.toRadians(136)
+                37.82, 13.98, 0.88516
         );
 
         // All prepares share this X
-        public static final double PREPARE_X = 43.543; // how far back from balls u start
+        public static final double PREPARE_Y = 10; // how far back from balls u start
 
         // All pickups share this X
-        public static final double PICKUP_X  = 14.000;   // how forward into balls u drive
+        public static final double PICKUP_Y  = -11;   // how forward into balls u drive
 
         // Lanes for each of the 3 sets
-        public static final double LANE1_Y = 83.57;
-        public static final double LANE2_Y = 59.90;
-        public static final double LANE3_Y = 36.00;
+        public static final double LANE1_X = 49;
+        public static final double LANE2_X = 76;
+        public static final double LANE3_X = 99;
 
         // Derived poses for each lane (prepare from SHOOT_POSE -> PREPARE_X,LANE_Y; pickup from PREPARE_X,LANE_Y -> PICKUP_X,LANE_Y)
         public static final Pose PREPARE1 = new Pose(
-                PREPARE_X, LANE1_Y, Math.toRadians(180)
+                LANE1_X, PREPARE_Y, -1.56
         );
         public static final Pose PICKUP1_END = new Pose(
-                PICKUP_X, LANE1_Y, Math.toRadians(180)
+                LANE1_X, PICKUP_Y, -1.56
         );
 
         public static final Pose PREPARE2 = new Pose(
-                PREPARE_X, LANE2_Y, Math.toRadians(180)
+                LANE2_X, PREPARE_Y, -1.56
         );
         public static final Pose PICKUP2_END = new Pose(
-                PICKUP_X, LANE2_Y, Math.toRadians(180)
+                LANE2_X, PICKUP_Y, -1.56
         );
 
         public static final Pose PREPARE3 = new Pose(
-                PREPARE_X, LANE3_Y, Math.toRadians(180)
+                LANE3_X, PREPARE_Y, -1.56
         );
         public static final Pose PICKUP3_END = new Pose(
-                PICKUP_X, LANE3_Y, Math.toRadians(180)
+                LANE3_X, PICKUP_Y, -1.56
         );
 
         // Gate hit path
@@ -480,10 +496,8 @@ public class BlueAuto extends LinearOpMode {
             shootpreset = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierCurve(
+                            new BezierLine(
                                     START_POSE,
-                                    new Pose(61.569, 71.811),
-                                    new Pose(38.054, 112.729),
                                     SHOOT_POSE
                             )
                     )
@@ -599,7 +613,10 @@ public class BlueAuto extends LinearOpMode {
                     .addPath(
                             new BezierLine(PICKUP3_END, SHOOT_POSE)
                     )
-                    .setTangentHeadingInterpolation()
+                    .setLinearHeadingInterpolation(
+                            PICKUP3_END.getHeading(),
+                            SHOOT_POSE.getHeading()
+                    )
                     .build();
         }
     }
