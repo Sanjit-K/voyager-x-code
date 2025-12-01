@@ -18,7 +18,7 @@ public class Constants {
     public static PathConstraints pathConstraints = new PathConstraints(0.99, 100, 1, 1);
 
     public static FollowerConstants followerConstants = new FollowerConstants()
-            .mass(8.2)
+            .mass(9.6)
             .forwardZeroPowerAcceleration(-30.186281715490008)
             .lateralZeroPowerAcceleration(-61.8071580)
             .useSecondaryDrivePIDF(true)
@@ -35,14 +35,14 @@ public class Constants {
             .leftRearMotorDirection(DcMotorSimple.Direction.REVERSE)
             .rightFrontMotorDirection(DcMotorSimple.Direction.FORWARD)
             .rightRearMotorDirection(DcMotorSimple.Direction.FORWARD)
-            .xVelocity(82.6)
+            .xVelocity(79.473)
             .yVelocity(68.92)
             .useBrakeModeInTeleOp(true);
 
     public static ThreeWheelIMUConstants localizerConstants = new ThreeWheelIMUConstants()
             .forwardTicksToInches(0.001985)
-            .strafeTicksToInches(0.001987)
-            .turnTicksToInches(0.001965)
+            .strafeTicksToInches(0.001997)
+            .turnTicksToInches(0.001905)
             .leftPodY(4.25)
             .rightPodY(-4.25)
             .strafePodX(0)
