@@ -138,7 +138,6 @@ public class BlueAuto extends LinearOpMode {
         shooter = new Shooter(hardwareMap, "shooterMotor", false);
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
         spindexer = new Spindexer(hardwareMap, "spindexer");
-        shooter.setPower(0.75);
 
         distanceSensor = hardwareMap.get(DigitalChannel.class, "distanceSensor");
         distanceSensor.setMode(DigitalChannel.Mode.INPUT);

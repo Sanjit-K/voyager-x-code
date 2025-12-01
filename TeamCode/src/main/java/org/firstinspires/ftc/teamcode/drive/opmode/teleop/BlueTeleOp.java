@@ -51,9 +51,9 @@ public class BlueTeleOp extends OpMode {
     private boolean threeShotActive = false;
     private final ElapsedTime threeShotTimer = new ElapsedTime();
     private final ElapsedTime detectedTimer = new ElapsedTime();
-    private static final int SHOOT_DELAY = 400;
-    private static final int KICK_DELAY = 300;
-    private static final int NORMAL_DELAY = 250;
+    private static final int SHOOT_DELAY = 350;
+    private static final int KICK_DELAY = 250;
+    private static final int NORMAL_DELAY = 200;
     private static final int FULL_CYCLE = SHOOT_DELAY + KICK_DELAY + NORMAL_DELAY;
 
     private final int DETECTED_DELAY = 300;
@@ -161,6 +161,7 @@ public class BlueTeleOp extends OpMode {
 //            aim at function to aim before shooting
             // timing for ball shots
             double t = threeShotTimer.milliseconds();
+            intake.spinOuttake();
 
             fd = rightPos ? SHOOT_DELAY : 0;
             // Shooting sequence for ball 1
@@ -182,6 +183,7 @@ public class BlueTeleOp extends OpMode {
             if (t > 3*FULL_CYCLE - fd) {
                 intakeIndex = 0;
                 spindexer.setIntakeIndex(intakeIndex);
+                intake.spinIntake();
                 threeShotActive = false;
                 rightPos = false;
             }
