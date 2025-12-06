@@ -8,6 +8,9 @@ import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagGameDatabase;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
+import com.pedropathing.geometry.Pose;
+import com.pedropathing.ftc.FTCCoordinates;
+import com.pedropathing.geometry.PedroCoordinates;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -20,6 +23,12 @@ public class AprilTagScanner {
     private final AprilTagProcessor aprilTag;
     private final VisionPortal visionPortal;
     private static final double MIN_DECISION_MARGIN = 0; // Minimum confidence threshold
+
+    // AprilTag position constants (field coordinates in inches)
+    // TODO: Fill in these values with actual AprilTag positions on the field
+    private static final Pose APRILTAG_B_POSITION = new Pose(0, 0, 0); // Replace with actual position
+    private static final Pose APRILTAG_R_POSITION = new Pose(0, 0, 0); // Replace with actual position
+    // Add more AprilTag positions as needed
 
     /**
      * Initialize the AprilTag scanner with optimized settings.
@@ -41,7 +50,7 @@ public class AprilTagScanner {
         visionPortal = new VisionPortal.Builder()
                 .setCamera(hardwareMap.get(WebcamName.class, webcamName))
                 .addProcessor(aprilTag)
-                .setCameraResolution(new android.util.Size(1920, 1080)) // C920 calibrated for 640x480
+                .setCameraResolution(new android.util.Size(640, 480)) // C920 calibrated for 640x480
                 .setStreamFormat(VisionPortal.StreamFormat.MJPEG) // Better performance
                 .enableLiveView(true)
                 .setAutoStopLiveView(false)
@@ -159,6 +168,57 @@ public class AprilTagScanner {
         }
         GainControl gainControl = visionPortal.getCameraControl(GainControl.class);
         gainControl.setGain(gain);
+    }
+
+    /**
+     * Calibrate the robot's position based on AprilTag detection.
+     * This method uses the detected AprilTag's position and distance to calculate
+     * where the robot should be positioned on the field.
+     *
+     * @return The calculated robot position as a Pose, or null if no suitable AprilTag is detected
+     */
+    public Pose calibratePosition() {
+        List<AprilTagDetection> detections = getDetections();
+
+        if (detections.isEmpty()) {
+            return null; // No AprilTags detected
+        }
+
+        // Use the first detected AprilTag for calibration
+        AprilTagDetection detection = detections.get(0);
+
+        // Get the AprilTag's known position on the field
+        Pose aprilTagPosition = getAprilTagPosition(detection.id);
+        if (aprilTagPosition == null) {
+            return null; // Unknown AprilTag ID
+        }
+
+        // Get robot position relative to AprilTag from detection (in FTC coordinates)
+        double robotX = aprilTagPosition.getX() - detection.ftcPose.x;
+        double robotY = aprilTagPosition.getY() - detection.ftcPose.y;
+        double robotHeading = aprilTagPosition.getHeading() - Math.toRadians(detection.ftcPose.yaw);
+
+        // Create pose in FTC coordinates and convert to Pedro coordinates
+        return new Pose(robotX, robotY, robotHeading, FTCCoordinates.INSTANCE)
+                .getAsCoordinateSystem(PedroCoordinates.INSTANCE);
+    }
+
+    /**
+     * Get the field position of an AprilTag by its ID.
+     *
+     * @param tagId The AprilTag ID
+     * @return The AprilTag's position on the field, or null if ID is unknown
+     */
+    private Pose getAprilTagPosition(int tagId) {
+        switch (tagId) {
+            case 20:
+                return APRILTAG_B_POSITION;
+            case 24:
+                return APRILTAG_R_POSITION;
+            // Add more cases as needed for other AprilTag IDs
+            default:
+                return null; // Unknown AprilTag ID
+        }
     }
 
     /**

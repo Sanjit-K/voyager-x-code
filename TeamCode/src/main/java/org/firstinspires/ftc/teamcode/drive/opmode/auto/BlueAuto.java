@@ -71,21 +71,21 @@ public class BlueAuto extends LinearOpMode {
     private final int[][][] volleyOrdersByMotif = new int[][][]{
             // motif 0: GPP
             {
-                    {0, 1, 2}, // preset
+                    {2, 0, 1}, // preset
                     {1, 2, 0}, // first
                     {0, 1, 2}, // second
                     {2, 1, 0}  // third
             },
             // motif 1: PGP  (placeholder, change to what you want)
             {
-                    {0, 1, 2},
+                    {2, 0, 1},
                     {0, 2, 1},
                     {1, 0, 2},
                     {1, 2, 0}
             },
             // motif 2: PPG  (placeholder, change to what you want)
             {
-                    {0, 1, 2},
+                    {2, 0, 1},
                     {2, 0, 1},
                     {1, 2, 0},
                     {2, 1, 0}
@@ -133,7 +133,7 @@ public class BlueAuto extends LinearOpMode {
         follower = Constants.createFollower(hardwareMap);
 
         // Start pose = first point of shootpreset path
-        follower.setStartingPose(new Pose(13.336, -16.531, 0.963));
+        follower.setStartingPose(new Pose(22, 121, Math.toRadians(315)));
 
         // Subsystems
         intake = new BarIntake(hardwareMap, "intakeMotor", false);
@@ -149,7 +149,7 @@ public class BlueAuto extends LinearOpMode {
         spindexer.setShootIndex(0);
         kickerServo.normal();
         shooter.setPower(0.9);
-        shooter.on();
+
         intake.spinIntake();
         intakeFlap.off();
 
@@ -170,6 +170,7 @@ public class BlueAuto extends LinearOpMode {
         setPathState(0);
 
         while (opModeIsActive()) {
+            shooter.on();
             follower.update();
             panelsTelemetry.update();
             currentPose = follower.getPose();
@@ -235,7 +236,7 @@ public class BlueAuto extends LinearOpMode {
 
 
 
-        intake.spinOuttake(0.1);
+        intake.spinOuttake(0.3);
 
         // ball 1
         if (t > 0 && t < SHOOT_DELAY - fd) {
@@ -314,7 +315,6 @@ public class BlueAuto extends LinearOpMode {
                     } else {
                         // volley 0 just finished this loop → move to lane 1
                         spindexAllowed = true;
-                        follower.setMaxPower(0.8);
                         follower.followPath(paths.preparepickup1);
                         setPathState(2);
                     }
@@ -323,22 +323,21 @@ public class BlueAuto extends LinearOpMode {
 
             case 2:
                 if (!follower.isBusy()) {
-                    follower.setMaxPower(SLOW_DOWN);
-                    follower.followPath(paths.pickup1);
+                    follower.followPath(paths.pickup1, SLOW_DOWN, false);
                     setPathState(3);
                 }
                 break;
 
             case 3:
                 if (!follower.isBusy()) {
-
+                    intake.stop();
+                    follower.followPath(paths.overflow, 0.7, false);
                     setPathState(4);
                 }
                 break;
 
             case 4:
                 if (!follower.isBusy()) {
-                    follower.setMaxPower(1);
                     follower.followPath(paths.shoot1);
                     setPathState(5);
                 }
@@ -351,6 +350,7 @@ public class BlueAuto extends LinearOpMode {
                         return;
                     } else {
                         spindexAllowed = true;
+                        intake.spinIntake();
                         follower.followPath(paths.preparepickup2);
                         setPathState(6);
                     }
@@ -359,15 +359,13 @@ public class BlueAuto extends LinearOpMode {
 
             case 6:
                 if (!follower.isBusy()) {
-                    follower.setMaxPower(SLOW_DOWN);
-                    follower.followPath(paths.pickup2);
+                    follower.followPath(paths.pickup2, SLOW_DOWN, false);
                     setPathState(7);
                 }
                 break;
 
             case 7:
                 if (!follower.isBusy()) {
-                    follower.setMaxPower(1);
                     follower.followPath(paths.shoot2);
                     setPathState(8);
                 }
@@ -388,15 +386,13 @@ public class BlueAuto extends LinearOpMode {
 
             case 9:
                 if (!follower.isBusy()) {
-                    follower.setMaxPower(SLOW_DOWN);
-                    follower.followPath(paths.pickup3);
+                    follower.followPath(paths.pickup3, SLOW_DOWN, false);
                     setPathState(10);
                 }
                 break;
 
             case 10:
                 if (!follower.isBusy()) {
-                    follower.setMaxPower(1);
                     follower.followPath(paths.shoot3);
                     setPathState(11);
                 }
@@ -414,7 +410,10 @@ public class BlueAuto extends LinearOpMode {
                 break;
 
             case 12:
-                // done
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.ending);
+                    setPathState(13);
+                }
                 break;
         }
     }
@@ -430,65 +429,10 @@ public class BlueAuto extends LinearOpMode {
 
     public static class Paths {
 
-        // ===== Tunable poses =====
-
-        // Start of auto
-        public static final Pose START_POSE = new Pose(
-                13.336, -16.531, 0.963
-        );
-
-        // Common shooting pose
-        public static final Pose SHOOT_POSE = new Pose(
-                37.82, 13.98, 0.88516
-        );
-
-        // All prepares share this X
-        public static final double PREPARE_Y = 10; // how far back from balls u start
-
-        // All pickups share this X
-        public static final double PICKUP_Y  = -11;   // how forward into balls u drive
-
-        // Lanes for each of the 3 sets
-        public static final double LANE1_X = 51;
-        public static final double LANE2_X = 76;
-        public static final double LANE3_X = 99;
-
-        // Derived poses for each lane (prepare from SHOOT_POSE -> PREPARE_X,LANE_Y; pickup from PREPARE_X,LANE_Y -> PICKUP_X,LANE_Y)
-        public static final Pose PREPARE1 = new Pose(
-                LANE1_X, PREPARE_Y, -1.56
-        );
-        public static final Pose PICKUP1_END = new Pose(
-                LANE1_X, PICKUP_Y, -1.56
-        );
-
-        public static final Pose PREPARE2 = new Pose(
-                LANE2_X, PREPARE_Y, -1.56
-        );
-        public static final Pose PICKUP2_END = new Pose(
-                LANE2_X, PICKUP_Y, -1.56
-        );
-
-        public static final Pose PREPARE3 = new Pose(
-                LANE3_X, PREPARE_Y, -1.56
-        );
-        public static final Pose PICKUP3_END = new Pose(
-                LANE3_X, PICKUP_Y, -1.56
-        );
-
-        // Gate hit path
-        public static final Pose GATE_CTRL = new Pose(
-                59.314, 81.429, 0
-        );
-        public static final Pose GATE_POSE = new Pose(
-                15.257, 71.657, Math.toRadians(90)
-        );
-
-        // ===== PathChains =====
-
         public PathChain shootpreset;
         public PathChain preparepickup1;
         public PathChain pickup1;
-        public PathChain releasegate;
+        public PathChain overflow;
         public PathChain shoot1;
         public PathChain preparepickup2;
         public PathChain pickup2;
@@ -496,136 +440,111 @@ public class BlueAuto extends LinearOpMode {
         public PathChain preparepickup3;
         public PathChain pickup3;
         public PathChain shoot3;
+        public PathChain ending;
 
         public Paths(Follower follower) {
-            // From start to first shooting pose
             shootpreset = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(
-                                    START_POSE,
-                                    SHOOT_POSE
-                            )
+                            new BezierLine(new Pose(22.000, 121.000), new Pose(48.000, 96.000))
                     )
-                    .setLinearHeadingInterpolation(
-                            START_POSE.getHeading(),
-                            SHOOT_POSE.getHeading()
-                    )
+                    .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(315))
                     .build();
 
-            // Lane 1: SHOOT_POSE -> prepare1 -> pickup1
             preparepickup1 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(SHOOT_POSE, PREPARE1)
+                            new BezierLine(new Pose(48.000, 96.000), new Pose(45.000, 84.500))
                     )
-                    .setLinearHeadingInterpolation(
-                            SHOOT_POSE.getHeading(),
-                            PREPARE1.getHeading()
-                    )
+                    .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(180))
                     .build();
 
             pickup1 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(PREPARE1, PICKUP1_END)
+                            new BezierLine(new Pose(45.000, 84.500), new Pose(24.000, 84.500))
                     )
-                    .setTangentHeadingInterpolation()
+                    .setConstantHeadingInterpolation(Math.toRadians(180))
                     .build();
 
-            // Swing out and hit gate from lane 1
-            releasegate = follower
+            overflow = follower
                     .pathBuilder()
                     .addPath(
                             new BezierCurve(
-                                    PICKUP1_END,
-                                    GATE_CTRL,
-                                    GATE_POSE
+                                    new Pose(24.000, 84.500),
+                                    new Pose(28.000, 80.000),
+                                    new Pose(15.000, 76.000)
                             )
                     )
-                    .setLinearHeadingInterpolation(
-                            PICKUP1_END.getHeading(),
-                            GATE_POSE.getHeading()
-                    )
+                    .setConstantHeadingInterpolation(Math.toRadians(180))
                     .build();
 
-            // Back to shooting pose from gate
             shoot1 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(GATE_POSE, SHOOT_POSE)
+                            new BezierLine(new Pose(15.000, 76.000), new Pose(48.000, 96.000))
                     )
-                    .setLinearHeadingInterpolation(
-                            GATE_POSE.getHeading(),
-                            SHOOT_POSE.getHeading()
-                    )
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(315))
                     .build();
 
-            // Lane 2: SHOOT_POSE -> prepare2 -> pickup2
             preparepickup2 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(SHOOT_POSE, PREPARE2)
+                            new BezierLine(new Pose(48.000, 96.000), new Pose(42.000, 59.500))
                     )
-                    .setLinearHeadingInterpolation(
-                            SHOOT_POSE.getHeading(),
-                            PREPARE2.getHeading()
-                    )
+                    .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(180))
                     .build();
 
             pickup2 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(PREPARE2, PICKUP2_END)
+                            new BezierLine(new Pose(42.000, 59.500), new Pose(24.000, 59.500))
                     )
-                    .setTangentHeadingInterpolation()
+                    .setConstantHeadingInterpolation(Math.toRadians(180))
                     .build();
 
-            // Back to shooting pose from lane 2
             shoot2 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(PICKUP2_END, SHOOT_POSE)
+                            new BezierLine(new Pose(24.000, 59.500), new Pose(48.000, 96.000))
                     )
-                    .setLinearHeadingInterpolation(
-                            PICKUP2_END.getHeading(),
-                            SHOOT_POSE.getHeading()
-                    )
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(315))
                     .build();
 
-            // Lane 3: SHOOT_POSE -> prepare3 -> pickup3
             preparepickup3 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(SHOOT_POSE, PREPARE3)
+                            new BezierLine(new Pose(48.000, 96.000), new Pose(42.000, 35.500))
                     )
-                    .setLinearHeadingInterpolation(
-                            SHOOT_POSE.getHeading(),
-                            PREPARE3.getHeading()
-                    )
+                    .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(180))
                     .build();
 
             pickup3 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(PREPARE3, PICKUP3_END)
+                            new BezierLine(new Pose(42.000, 35.500), new Pose(24.000, 35.500))
                     )
-                    .setTangentHeadingInterpolation()
+                    .setConstantHeadingInterpolation(Math.toRadians(180))
                     .build();
 
-            // Back to shooting pose from lane 3
             shoot3 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(PICKUP3_END, SHOOT_POSE)
+                            new BezierLine(new Pose(24.000, 35.500), new Pose(48.000, 96.000))
                     )
-                    .setLinearHeadingInterpolation(
-                            PICKUP3_END.getHeading(),
-                            SHOOT_POSE.getHeading()
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(315))
+                    .build();
+
+            ending = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(new Pose(48.000, 96.000), new Pose(48.000, 130.000))
                     )
+                    .setTangentHeadingInterpolation()
                     .build();
         }
     }
+
 
 
 }
