@@ -6,7 +6,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 
 public class BarIntake {
     private DcMotor motor;
-    private double power = 0.85;
+    private double power = 0.95;
 
     public BarIntake(HardwareMap hardwareMap, String name, boolean reversed) {
         motor = hardwareMap.get(DcMotor.class, name);
@@ -32,6 +32,9 @@ public class BarIntake {
 
     public void spinOuttake() {
         motor.setPower(-0.67);
+    }
+    public void spinOuttake(double outtakePower) {
+        motor.setPower(-outtakePower);
     }
 
     public void stop() {

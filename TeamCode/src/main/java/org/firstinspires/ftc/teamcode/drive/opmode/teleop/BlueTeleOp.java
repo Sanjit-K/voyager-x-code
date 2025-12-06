@@ -14,6 +14,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.robotcontroller.external.samples.SensorTouch;
 import org.firstinspires.ftc.teamcode.drive.opmode.teleop.functions.LockMode;
 import org.firstinspires.ftc.teamcode.intake.BarIntake;
+import org.firstinspires.ftc.teamcode.intake.IntakeFlap;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.firstinspires.ftc.teamcode.shooting.KickerServo;
 import org.firstinspires.ftc.teamcode.shooting.Shooter;
@@ -33,7 +34,7 @@ public class BlueTeleOp extends OpMode {
     private KickerServo kickerServo;
     private Shooter shooter;
     private ColorSensor colorSensor;
-
+    private IntakeFlap intakeFlap;
     private DigitalChannel distanceSensor;
 
 
@@ -86,11 +87,13 @@ public class BlueTeleOp extends OpMode {
         shooter = new Shooter(hardwareMap, "shooterMotor", false);
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(hardwareMap, "spindexer");
+        intakeFlap = new IntakeFlap(hardwareMap, "intakeFlapServo");
+
         distanceSensor = hardwareMap.get(DigitalChannel.class, "distanceSensor");
         distanceSensor.setMode(DigitalChannel.Mode.INPUT);
 
         spindexer.setIntakeIndex(intakeIndex);
-
+        intakeFlap.off();
         follower.setStartingPose(startingPose);
     }
 
@@ -106,11 +109,11 @@ public class BlueTeleOp extends OpMode {
         shooter.on();
         // Field-centric drive with alliance offset, suppressed if locked
         if (gamepad1.left_trigger > 0.5) {
-//            lockMode.lockPosition();
+            lockMode.lockPosition();
         }
         else{
 
-//            lockMode.unlockPosition();
+            lockMode.unlockPosition();
             // Start teleop drive
             follower.setTeleOpDrive(
                     -gamepad1.left_stick_y,
@@ -153,6 +156,7 @@ public class BlueTeleOp extends OpMode {
 
         if (gamepad1.leftBumperWasPressed()) {
             threeShotActive = true;
+            intakeFlap.on();
             threeShotTimer.reset();
         }
 
@@ -184,6 +188,7 @@ public class BlueTeleOp extends OpMode {
                 intakeIndex = 0;
                 spindexer.setIntakeIndex(intakeIndex);
                 intake.spinIntake();
+                intakeFlap.off();
                 threeShotActive = false;
                 rightPos = false;
             }
@@ -210,6 +215,7 @@ public class BlueTeleOp extends OpMode {
                 rightPos = false;
             }
             else{
+                intakeFlap.on();
                 spindexer.setShootIndex(2);
                 rightPos = true;
             }
@@ -220,6 +226,7 @@ public class BlueTeleOp extends OpMode {
         else if (gamepad1.rightBumperWasPressed()){
             spindexer.setColorAtPos(detectedColor);
             spindexer.advanceIntake();
+            intakeFlap.off();
             rightPos = false;
             detectedCount++;
             detectedTimer.reset();

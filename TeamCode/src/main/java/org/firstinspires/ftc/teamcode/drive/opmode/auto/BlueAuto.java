@@ -14,6 +14,7 @@ import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.intake.BarIntake;
+import org.firstinspires.ftc.teamcode.intake.IntakeFlap;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.firstinspires.ftc.teamcode.shooting.KickerServo;
 import org.firstinspires.ftc.teamcode.shooting.Shooter;
@@ -37,6 +38,7 @@ public class BlueAuto extends LinearOpMode {
     private Shooter shooter;
     private KickerServo kickerServo;
     private Spindexer spindexer;
+    private IntakeFlap intakeFlap;
     private DigitalChannel distanceSensor;
 
     // Paths holder
@@ -49,8 +51,8 @@ public class BlueAuto extends LinearOpMode {
     private boolean threeShotActive = false;
     private final ElapsedTime threeShotTimer = new ElapsedTime();
     private static final int SHOOT_DELAY = 500;
-    private static final int KICK_DELAY = 400;
-    private static final int NORMAL_DELAY = 250;
+    private static final int KICK_DELAY = 250;
+    private static final int NORMAL_DELAY = 200;
     private static final int FULL_CYCLE = SHOOT_DELAY + KICK_DELAY + NORMAL_DELAY;
 
     // Per-volley shoot orders: which spindex slots to fire in which order
@@ -138,6 +140,7 @@ public class BlueAuto extends LinearOpMode {
         shooter = new Shooter(hardwareMap, "shooterMotor", false);
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
         spindexer = new Spindexer(hardwareMap, "spindexer");
+        intakeFlap = new IntakeFlap(hardwareMap, "intakeFlapServo");
 
         distanceSensor = hardwareMap.get(DigitalChannel.class, "distanceSensor");
         distanceSensor.setMode(DigitalChannel.Mode.INPUT);
@@ -145,8 +148,10 @@ public class BlueAuto extends LinearOpMode {
         // Basic startup config (auto-intaking and spinning shooter)
         spindexer.setShootIndex(0);
         kickerServo.normal();
+        shooter.setPower(0.9);
         shooter.on();
         intake.spinIntake();
+        intakeFlap.off();
 
         // Build all paths
         paths = new Paths(follower);
@@ -202,6 +207,7 @@ public class BlueAuto extends LinearOpMode {
     // -------- 3-shot volley logic --------
 
     private void startThreeShotVolley(int volleyIndex) {
+        intakeFlap.on();
         currentVolley = volleyIndex;   // which of the 4 patterns (0..3)
         threeShotActive = true;
         threeShotTimer.reset();
@@ -229,7 +235,7 @@ public class BlueAuto extends LinearOpMode {
 
 
 
-        intake.spinOuttake();
+        intake.spinOuttake(0.1);
 
         // ball 1
         if (t > 0 && t < SHOOT_DELAY - fd) {
@@ -267,6 +273,7 @@ public class BlueAuto extends LinearOpMode {
         if (t > 3 * FULL_CYCLE + 200 - fd) {
             intakeIndex = 0;
             intake.spinIntake();
+            intakeFlap.off();
             spindexer.setIntakeIndex(intakeIndex);
             threeShotActive = false;
             rightPos = false;
@@ -442,7 +449,7 @@ public class BlueAuto extends LinearOpMode {
         public static final double PICKUP_Y  = -11;   // how forward into balls u drive
 
         // Lanes for each of the 3 sets
-        public static final double LANE1_X = 49;
+        public static final double LANE1_X = 51;
         public static final double LANE2_X = 76;
         public static final double LANE3_X = 99;
 
