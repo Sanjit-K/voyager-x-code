@@ -443,107 +443,156 @@ public class BlueAuto extends LinearOpMode {
         public PathChain ending;
 
         public Paths(Follower follower) {
+
+            // === shootpreset = line1 ===
             shootpreset = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(new Pose(22.000, 121.000), new Pose(48.000, 96.000))
+                            new BezierLine(
+                                    new Pose(22.000, 121.000),
+                                    new Pose(48.000, 96.000)
+                            )
                     )
                     .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(315))
                     .build();
 
+            // === preparepickup1 = line2 ===
             preparepickup1 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(new Pose(48.000, 96.000), new Pose(45.000, 84.500))
+                            new BezierLine(
+                                    new Pose(48.000, 96.000),
+                                    new Pose(45.000, 84.500)
+                            )
                     )
                     .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(180))
                     .build();
 
+            // === pickup1 = line3 ===
             pickup1 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(new Pose(45.000, 84.500), new Pose(24.000, 84.500))
+                            new BezierLine(
+                                    new Pose(45.000, 84.500),
+                                    new Pose(24.000, 84.500)
+                            )
                     )
                     .setConstantHeadingInterpolation(Math.toRadians(180))
                     .build();
 
+            // === overflow = line4 (BezierCurve) ===
             overflow = follower
                     .pathBuilder()
                     .addPath(
                             new BezierCurve(
                                     new Pose(24.000, 84.500),
                                     new Pose(28.000, 80.000),
-                                    new Pose(15.000, 76.000)
+                                    new Pose(15.000, 78.000)
                             )
                     )
                     .setConstantHeadingInterpolation(Math.toRadians(180))
                     .build();
 
+            // === shoot1 = line5 ===
             shoot1 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(new Pose(15.000, 76.000), new Pose(48.000, 96.000))
+                            new BezierLine(
+                                    new Pose(15.000, 78.000),
+                                    new Pose(48.000, 96.000)
+                            )
                     )
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(315))
                     .build();
 
+            // === preparepickup2 = Path6 (BezierCurve) ===
             preparepickup2 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(new Pose(48.000, 96.000), new Pose(42.000, 59.500))
+                            new BezierCurve(
+                                    new Pose(48.000, 96.000),
+                                    new Pose(64.958, 60.029),
+                                    new Pose(42.425, 60)
+                            )
                     )
                     .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(180))
                     .build();
 
+            // === pickup2 = line7 ===
             pickup2 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(new Pose(42.000, 59.500), new Pose(24.000, 59.500))
+                            new BezierLine(
+                                    new Pose(42.425, 60),
+                                    new Pose(24.000, 60)
+                            )
                     )
                     .setConstantHeadingInterpolation(Math.toRadians(180))
                     .build();
 
+            // === shoot2 = line8 ===
             shoot2 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(new Pose(24.000, 59.500), new Pose(48.000, 96.000))
+                            new BezierLine(
+                                    new Pose(24.000, 60),
+                                    new Pose(48.000, 96.000)
+                            )
                     )
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(315))
                     .build();
 
+            // === preparepickup3 = Path9 (BezierCurve) ===
             preparepickup3 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(new Pose(48.000, 96.000), new Pose(42.000, 35.500))
+                            new BezierCurve(
+                                    new Pose(48.000, 96.000),
+                                    new Pose(79.746, 31.863),
+                                    new Pose(42.000, 38)
+                            )
                     )
                     .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(180))
                     .build();
 
+            // === pickup3 = line10 ===
             pickup3 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(new Pose(42.000, 35.500), new Pose(24.000, 35.500))
+                            new BezierLine(
+                                    new Pose(42.000, 38),
+                                    new Pose(24.000, 38)
+                            )
                     )
                     .setConstantHeadingInterpolation(Math.toRadians(180))
                     .build();
 
+            // === shoot3 = line11 ===
             shoot3 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(new Pose(24.000, 35.500), new Pose(48.000, 96.000))
+                            new BezierLine(
+                                    new Pose(24.000, 38),
+                                    new Pose(48.000, 96.000)
+                            )
                     )
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(315))
                     .build();
 
+            // === ending = Path12 ===
             ending = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(new Pose(48.000, 96.000), new Pose(48.000, 130.000))
+                            new BezierLine(
+                                    new Pose(48.000, 96.000),
+                                    new Pose(48.235, 51.403)
+                            )
                     )
                     .setTangentHeadingInterpolation()
                     .build();
         }
     }
+
 
 
 
