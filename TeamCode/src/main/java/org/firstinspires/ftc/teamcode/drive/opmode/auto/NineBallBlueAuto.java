@@ -1,0 +1,552 @@
+package org.firstinspires.ftc.teamcode.drive.opmode.auto;
+
+import com.bylazar.configurables.annotations.Configurable;
+import com.bylazar.telemetry.PanelsTelemetry;
+import com.bylazar.telemetry.TelemetryManager;
+import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.BezierCurve;
+import com.pedropathing.geometry.BezierLine;
+import com.pedropathing.geometry.Pose;
+import com.pedropathing.paths.PathChain;
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DigitalChannel;
+import com.qualcomm.robotcore.util.ElapsedTime;
+
+import org.firstinspires.ftc.teamcode.intake.BarIntake;
+import org.firstinspires.ftc.teamcode.intake.IntakeFlap;
+import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.shooting.KickerServo;
+import org.firstinspires.ftc.teamcode.shooting.Shooter;
+import org.firstinspires.ftc.teamcode.sorting.Spindexer;
+
+@Autonomous(name = "Blue Auto Decode", group = "Opmode")
+@Configurable
+@SuppressWarnings("FieldCanBeLocal")
+public class NineBallBlueAuto extends LinearOpMode {
+
+    // Timer
+    private final ElapsedTime runtime = new ElapsedTime();
+
+    // Pedro / telemetry
+    private Follower follower;
+    private Pose currentPose;
+    private TelemetryManager panelsTelemetry;
+
+    // Robot subsystems
+    private BarIntake intake;
+    private Shooter shooter;
+    private KickerServo kickerServo;
+    private Spindexer spindexer;
+    private IntakeFlap intakeFlap;
+    private DigitalChannel distanceSensor;
+
+    // Paths holder
+    private Paths paths;
+
+    // Path state machine
+    private int pathState = 0;
+
+    // 3-shot volley state
+    private boolean threeShotActive = false;
+    private final ElapsedTime threeShotTimer = new ElapsedTime();
+    private static final int SHOOT_DELAY = 500;
+    private static final int KICK_DELAY = 250;
+    private static final int NORMAL_DELAY = 200;
+    private static final int FULL_CYCLE = SHOOT_DELAY + KICK_DELAY + NORMAL_DELAY;
+
+    // Per-volley shoot orders: which spindex slots to fire in which order
+    // 0 = preset, 1 = first cycle, 2 = second cycle, 3 = third cycle
+    // Motif type
+    private enum Motif {
+        GPP, PGP, PPG
+    }
+
+    // TODO: get from webcam
+    private Motif motif = Motif.GPP;  // default
+
+    // volleyOrdersByMotif[motif][volleyIndex][ball#]
+    // Fill these with whatever orders you want for each motif.
+    // Example values here: GPP matches what you specified earlier.
+    private final int[][][] volleyOrdersByMotif = new int[][][]{
+            // motif 0: GPP
+            {
+                    {2, 0, 1}, // preset
+                    {1, 2, 0}, // first
+                    {0, 1, 2}, // second
+                    {2, 1, 0}  // third
+            },
+            // motif 1: PGP  (placeholder, change to what you want)
+            {
+                    {2, 0, 1},
+                    {0, 2, 1},
+                    {1, 0, 2},
+                    {1, 2, 0}
+            },
+            // motif 2: PPG  (placeholder, change to what you want)
+            {
+                    {2, 0, 1},
+                    {2, 0, 1},
+                    {1, 2, 0},
+                    {2, 1, 0}
+            }
+    };
+
+    // Active orders for the current motif
+    private int[][] volleyOrders;      // [volleyIndex][ball# 0..2]
+    private int currentVolley = 0;
+
+    private final double SLOW_DOWN = 0.1;
+
+
+
+    private int intakeIndex = 0;
+    private boolean rightPos = false;
+    private boolean spindexAllowed = false;
+
+    // Auto intake / spindexer detection (ported from TeleOp)
+    private boolean detected = false;
+    private final ElapsedTime detectedTimer = new ElapsedTime();
+    private static final int DETECTED_DELAY = 300;
+    private String colorLog;
+
+    // Logging
+    private void log(String caption, Object... text) {
+        if (text.length == 1) {
+            telemetry.addData(caption, text[0]);
+            panelsTelemetry.debug(caption + ": " + text[0]);
+        } else if (text.length >= 2) {
+            StringBuilder message = new StringBuilder();
+            for (int i = 0; i < text.length; i++) {
+                message.append(text[i]);
+                if (i < text.length - 1) message.append(" ");
+            }
+            telemetry.addData(caption, message.toString());
+            panelsTelemetry.debug(caption + ": " + message);
+        }
+    }
+
+    @Override
+    public void runOpMode() {
+        // Panels + Pedro
+        panelsTelemetry = PanelsTelemetry.INSTANCE.getTelemetry();
+        follower = Constants.createFollower(hardwareMap);
+
+        // Start pose = first point of shootpreset path
+        follower.setStartingPose(new Pose(22, 121, Math.toRadians(315)));
+
+        // Subsystems
+        intake = new BarIntake(hardwareMap, "intakeMotor", false);
+        shooter = new Shooter(hardwareMap, "shooterMotor", false);
+        kickerServo = new KickerServo(hardwareMap, "kickerServo");
+        spindexer = new Spindexer(hardwareMap, "spindexer");
+        intakeFlap = new IntakeFlap(hardwareMap, "intakeFlapServo");
+
+        distanceSensor = hardwareMap.get(DigitalChannel.class, "distanceSensor");
+        distanceSensor.setMode(DigitalChannel.Mode.INPUT);
+
+        // Basic startup config (auto-intaking and spinning shooter)
+        spindexer.setShootIndex(0);
+        kickerServo.normal();
+        shooter.setPower(0.9);
+
+        intake.spinIntake();
+        intakeFlap.off();
+
+        // Build all paths
+        paths = new Paths(follower);
+
+        volleyOrders = volleyOrdersByMotif[motif.ordinal()]; //.ordinal() js finds the index coresponding to the motif
+
+        log("Status", "Initialized");
+        telemetry.update();
+
+        waitForStart();
+        if (isStopRequested()) return;
+
+        runtime.reset();
+        threeShotTimer.reset();
+        detectedTimer.reset();
+        setPathState(0);
+
+        while (opModeIsActive()) {
+            shooter.on();
+            follower.update();
+            panelsTelemetry.update();
+            currentPose = follower.getPose();
+
+            // -------- automatic advancing spindexer logic (from TeleOp) --------
+            detected = distanceSensor.getState();
+
+            if (detected && !spindexer.isFull()
+                    && detectedTimer.milliseconds() > DETECTED_DELAY
+                    && !threeShotActive && spindexAllowed) {
+
+                spindexer.setColorAtPos('#');
+
+                if (!spindexer.isFull()) {
+                    spindexer.advanceIntake();
+                    rightPos = false;
+                } else {
+                    spindexer.setShootIndex(2);
+                }
+
+                detectedTimer.reset();
+            }
+            // --------------------------------------------------------------------
+
+            updateStateMachine();
+
+            log("Elapsed", runtime.toString());
+            log("X", currentPose.getX());
+            log("Y", currentPose.getY());
+            log("Heading", currentPose.getHeading());
+            telemetry.update();
+        }
+    }
+
+    // -------- 3-shot volley logic --------
+
+    private void startThreeShotVolley(int volleyIndex) {
+        intakeFlap.on();
+        currentVolley = volleyIndex;   // which of the 4 patterns (0..3)
+        threeShotActive = true;
+        threeShotTimer.reset();
+    }
+
+
+
+    private void kickAndClearIndex(int index) {
+        spindexer.setColorAtPos('_', index);
+        kickerServo.kick();
+    }
+
+    private boolean updateThreeShotVolley() {
+        if (!threeShotActive) return true;
+
+        double t = threeShotTimer.milliseconds();
+        int fd = rightPos ? SHOOT_DELAY : 0;
+
+        // Get order for this volley and motif
+        int[] order = volleyOrders[currentVolley];
+        int firstSlot  = order[0];
+        int secondSlot = order[1];
+        int thirdSlot  = order[2];
+        spindexAllowed = false;
+
+
+
+        intake.spinOuttake(0.3);
+
+        // ball 1
+        if (t > 0 && t < SHOOT_DELAY - fd) {
+            spindexer.setShootIndex(firstSlot);
+        }
+        if (t > SHOOT_DELAY - fd && t < SHOOT_DELAY + KICK_DELAY - fd) {
+            kickAndClearIndex(firstSlot);
+        }
+        if (t > SHOOT_DELAY + KICK_DELAY - fd && t < FULL_CYCLE - fd) {
+            kickerServo.normal();
+        }
+
+        // ball 2
+        if (t > FULL_CYCLE - fd && t < FULL_CYCLE + SHOOT_DELAY - fd) {
+            spindexer.setShootIndex(secondSlot);
+        }
+        if (t > FULL_CYCLE + SHOOT_DELAY - fd && t < 2 * FULL_CYCLE - NORMAL_DELAY - fd) {
+            kickAndClearIndex(secondSlot);
+        }
+        if (t > 2 * FULL_CYCLE - NORMAL_DELAY - fd && t < 2 * FULL_CYCLE - fd) {
+            kickerServo.normal();
+        }
+
+        // ball 3
+        if (t > 2 * FULL_CYCLE - fd && t < 2 * FULL_CYCLE + SHOOT_DELAY - fd) {
+            spindexer.setShootIndex(thirdSlot);
+        }
+        if (t > 2 * FULL_CYCLE + SHOOT_DELAY - fd && t < 3 * FULL_CYCLE - NORMAL_DELAY - fd) {
+            kickAndClearIndex(thirdSlot);
+        }
+        if (t > 3 * FULL_CYCLE - NORMAL_DELAY - fd && t < 3 * FULL_CYCLE - fd) {
+            kickerServo.normal();
+        }
+
+        if (t > 3 * FULL_CYCLE + 200 - fd) {
+            intakeIndex = 0;
+            intake.spinIntake();
+            intakeFlap.off();
+            spindexer.setIntakeIndex(intakeIndex);
+            threeShotActive = false;
+            rightPos = false;
+            return true;
+        }
+
+        return false;
+    }
+
+
+
+    // -------- path state machine (unchanged logic, uses threeShotActive) --------
+
+    private void updateStateMachine() {
+        // Handle volley first
+        boolean volleyFinishedThisLoop = false;
+        if (threeShotActive) {
+            volleyFinishedThisLoop = updateThreeShotVolley();
+            if (!volleyFinishedThisLoop) {
+                // still shooting, do nothing else this loop
+                return;
+            }
+            // if finished, threeShotActive is now false and we fall through
+        }
+
+        switch (pathState) {
+            case 0:
+                follower.followPath(paths.shootpreset);
+                setPathState(1);
+                break;
+
+            case 1: // preset volley
+                if (!follower.isBusy()) {
+                    if (!volleyFinishedThisLoop) {
+                        // have not shot yet in this state → start volley 0
+                        startThreeShotVolley(0);
+                        return;
+                    } else {
+                        // volley 0 just finished this loop → move to lane 1
+                        spindexAllowed = true;
+                        follower.followPath(paths.preparepickup1);
+                        setPathState(2);
+                    }
+                }
+                break;
+
+            case 2:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.pickup1, SLOW_DOWN, false);
+                    setPathState(4);
+                }
+                break;
+
+            case 3:
+                //gate removed
+
+                break;
+
+            case 4:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.shoot1);
+                    setPathState(5);
+                }
+                break;
+
+            case 5: // volley after first pickup/gate
+                if (!follower.isBusy()) {
+                    if (!volleyFinishedThisLoop) {
+                        startThreeShotVolley(1);
+                        return;
+                    } else {
+                        spindexAllowed = true;
+                        intake.spinIntake();
+                        follower.followPath(paths.preparepickup2);
+                        setPathState(6);
+                    }
+                }
+                break;
+
+            case 6:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.pickup2, SLOW_DOWN, false);
+                    setPathState(7);
+                }
+                break;
+
+            case 7:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.shoot2);
+                    setPathState(8);
+                }
+                break;
+
+            case 8: // volley after second pickup
+                if (!follower.isBusy()) {
+                    if (!volleyFinishedThisLoop) {
+                        startThreeShotVolley(2);
+                        return;
+                    } else {
+                        spindexAllowed = true;
+                        follower.followPath(paths.ending);
+                        setPathState(13);
+                    }
+                }
+                break;
+        }
+    }
+
+
+
+    private void setPathState(int newState) {
+        pathState = newState;
+        runtime.reset();
+    }
+
+    // -------- Paths class (unchanged) --------
+
+    public static class Paths {
+
+        public PathChain shootpreset;
+        public PathChain preparepickup1;
+        public PathChain pickup1;
+        public PathChain overflow;
+        public PathChain shoot1;
+        public PathChain preparepickup2;
+        public PathChain pickup2;
+        public PathChain shoot2;
+        public PathChain preparepickup3;
+        public PathChain pickup3;
+        public PathChain shoot3;
+        public PathChain ending;
+
+        public Paths(Follower follower) {
+
+            // === shootpreset = line1 ===
+            shootpreset = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(
+                                    new Pose(22.000, 121.000),
+                                    new Pose(48.000, 96.000)
+                            )
+                    )
+                    .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(315))
+                    .build();
+
+            // === preparepickup1 = line2 ===
+            preparepickup1 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(
+                                    new Pose(48.000, 96.000),
+                                    new Pose(45.000, 84.500)
+                            )
+                    )
+                    .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(180))
+                    .build();
+
+            // === pickup1 = line3 ===
+            pickup1 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(
+                                    new Pose(45.000, 84.500),
+                                    new Pose(24.000, 84.500)
+                            )
+                    )
+                    .setConstantHeadingInterpolation(Math.toRadians(180))
+                    .build();
+
+
+            // === shoot1 = line5 ===
+            shoot1 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(
+                                    new Pose(24.000, 84.500),
+                                    new Pose(48.000, 96.000)
+                            )
+                    )
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(315))
+                    .build();
+
+            // === preparepickup2 = Path6 (BezierCurve) ===
+            preparepickup2 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierCurve(
+                                    new Pose(48.000, 96.000),
+                                    new Pose(64.958, 60.029),
+                                    new Pose(42.425, 60)
+                            )
+                    )
+                    .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(180))
+                    .build();
+
+            // === pickup2 = line7 ===
+            pickup2 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(
+                                    new Pose(42.425, 60),
+                                    new Pose(24.000, 60)
+                            )
+                    )
+                    .setConstantHeadingInterpolation(Math.toRadians(180))
+                    .build();
+
+            // === shoot2 = line8 ===
+            shoot2 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(
+                                    new Pose(24.000, 60),
+                                    new Pose(48.000, 96.000)
+                            )
+                    )
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(315))
+                    .build();
+
+            // === preparepickup3 = Path9 (BezierCurve) ===
+            preparepickup3 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierCurve(
+                                    new Pose(48.000, 96.000),
+                                    new Pose(79.746, 31.863),
+                                    new Pose(42.000, 38)
+                            )
+                    )
+                    .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(180))
+                    .build();
+
+            // === pickup3 = line10 ===
+            pickup3 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(
+                                    new Pose(42.000, 38),
+                                    new Pose(24.000, 38)
+                            )
+                    )
+                    .setConstantHeadingInterpolation(Math.toRadians(180))
+                    .build();
+
+            // === shoot3 = line11 ===
+            shoot3 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(
+                                    new Pose(24.000, 38),
+                                    new Pose(48.000, 96.000)
+                            )
+                    )
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(315))
+                    .build();
+
+            // === ending = Path12 ===
+            ending = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(
+                                    new Pose(48.000, 96.000),
+                                    new Pose(48.235, 51.403)
+                            )
+                    )
+                    .setTangentHeadingInterpolation()
+                    .build();
+        }
+    }
+
+
+
+
+}
