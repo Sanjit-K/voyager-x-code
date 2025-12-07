@@ -7,11 +7,9 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 
-import org.firstinspires.ftc.robotcontroller.external.samples.SensorTouch;
 import org.firstinspires.ftc.teamcode.drive.opmode.teleop.functions.LockMode;
 import org.firstinspires.ftc.teamcode.intake.BarIntake;
 import org.firstinspires.ftc.teamcode.intake.IntakeFlap;
@@ -40,8 +38,8 @@ public class BlueTeleOp extends OpMode {
 
 
     private Spindexer spindexer;
-    private boolean intakeOn = false;
-    private boolean outtakeOn = false;
+    private volatile boolean intakeOn = false;
+    private volatile boolean outtakeOn = false;
     private char detectedColor = '_';
     private boolean detected = false;
     private int intakeIndex = 0;

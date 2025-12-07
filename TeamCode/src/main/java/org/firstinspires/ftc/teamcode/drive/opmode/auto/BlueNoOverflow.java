@@ -20,10 +20,10 @@ import org.firstinspires.ftc.teamcode.shooting.KickerServo;
 import org.firstinspires.ftc.teamcode.shooting.Shooter;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 
-@Autonomous(name = "9 ball", group = "Opmode")
+@Autonomous(name = "Blue Auto no overflow", group = "Opmode")
 @Configurable
 @SuppressWarnings("FieldCanBeLocal")
-public class NineBallBlueAuto extends LinearOpMode {
+public class BlueNoOverflow extends LinearOpMode {
 
     // Timer
     private final ElapsedTime runtime = new ElapsedTime();
@@ -96,7 +96,7 @@ public class NineBallBlueAuto extends LinearOpMode {
     private int[][] volleyOrders;      // [volleyIndex][ball# 0..2]
     private int currentVolley = 0;
 
-    private final double SLOW_DOWN = 0.1;
+    private final double SLOW_DOWN = 0.2;
 
 
 
@@ -148,7 +148,7 @@ public class NineBallBlueAuto extends LinearOpMode {
         // Basic startup config (auto-intaking and spinning shooter)
         spindexer.setShootIndex(0);
         kickerServo.normal();
-        shooter.setPower(0.9);
+        shooter.setPower(0.77);
 
         intake.spinIntake();
         intakeFlap.off();
@@ -324,13 +324,12 @@ public class NineBallBlueAuto extends LinearOpMode {
             case 2:
                 if (!follower.isBusy()) {
                     follower.followPath(paths.pickup1, SLOW_DOWN, false);
-                    setPathState(4);
+                    setPathState(3);
                 }
                 break;
 
             case 3:
-                //gate removed
-
+                setPathState(4);
                 break;
 
             case 4:
@@ -375,9 +374,41 @@ public class NineBallBlueAuto extends LinearOpMode {
                         return;
                     } else {
                         spindexAllowed = true;
-                        follower.followPath(paths.ending);
-                        setPathState(13);
+                        follower.followPath(paths.preparepickup3);
+                        setPathState(9);
                     }
+                }
+                break;
+
+            case 9:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.pickup3, SLOW_DOWN, false);
+                    setPathState(10);
+                }
+                break;
+
+            case 10:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.shoot3);
+                    setPathState(11);
+                }
+                break;
+
+            case 11: // final volley
+                if (!follower.isBusy()) {
+                    if (!volleyFinishedThisLoop) {
+                        startThreeShotVolley(3);
+                        return;
+                    } else {
+                        setPathState(12);
+                    }
+                }
+                break;
+
+            case 12:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.ending);
+                    setPathState(13);
                 }
                 break;
         }
@@ -418,19 +449,20 @@ public class NineBallBlueAuto extends LinearOpMode {
                                     new Pose(48.000, 96.000)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(315))
+                    .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(320))
                     .build();
 
             // === preparepickup1 = line2 ===
             preparepickup1 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(
+                            new BezierCurve(
                                     new Pose(48.000, 96.000),
+                                    new Pose(61.300, 86.100),
                                     new Pose(45.000, 84.500)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(180))
+                    .setLinearHeadingInterpolation(Math.toRadians(320), Math.toRadians(180))
                     .build();
 
             // === pickup1 = line3 ===
@@ -445,6 +477,18 @@ public class NineBallBlueAuto extends LinearOpMode {
                     .setConstantHeadingInterpolation(Math.toRadians(180))
                     .build();
 
+            // === overflow = line4 (BezierCurve) ===
+            overflow = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierCurve(
+                                    new Pose(24.000, 84.500),
+                                    new Pose(28.000, 80.000),
+                                    new Pose(16.000, 73.500)
+                            )
+                    )
+                    .setConstantHeadingInterpolation(Math.toRadians(180))
+                    .build();
 
             // === shoot1 = line5 ===
             shoot1 = follower
@@ -455,7 +499,7 @@ public class NineBallBlueAuto extends LinearOpMode {
                                     new Pose(48.000, 96.000)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(315))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(320))
                     .build();
 
             // === preparepickup2 = Path6 (BezierCurve) ===
@@ -465,10 +509,10 @@ public class NineBallBlueAuto extends LinearOpMode {
                             new BezierCurve(
                                     new Pose(48.000, 96.000),
                                     new Pose(64.958, 60.029),
-                                    new Pose(42.425, 60)
+                                    new Pose(44, 60)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(180))
+                    .setLinearHeadingInterpolation(Math.toRadians(320), Math.toRadians(180))
                     .build();
 
             // === pickup2 = line7 ===
@@ -476,7 +520,7 @@ public class NineBallBlueAuto extends LinearOpMode {
                     .pathBuilder()
                     .addPath(
                             new BezierLine(
-                                    new Pose(42.425, 60),
+                                    new Pose(44, 60),
                                     new Pose(24.000, 60)
                             )
                     )
@@ -492,7 +536,7 @@ public class NineBallBlueAuto extends LinearOpMode {
                                     new Pose(48.000, 96.000)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(315))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(320))
                     .build();
 
             // === preparepickup3 = Path9 (BezierCurve) ===
@@ -502,10 +546,10 @@ public class NineBallBlueAuto extends LinearOpMode {
                             new BezierCurve(
                                     new Pose(48.000, 96.000),
                                     new Pose(79.746, 31.863),
-                                    new Pose(42.000, 38)
+                                    new Pose(44.000, 40)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(180))
+                    .setLinearHeadingInterpolation(Math.toRadians(320), Math.toRadians(180))
                     .build();
 
             // === pickup3 = line10 ===
@@ -513,8 +557,8 @@ public class NineBallBlueAuto extends LinearOpMode {
                     .pathBuilder()
                     .addPath(
                             new BezierLine(
-                                    new Pose(42.000, 38),
-                                    new Pose(24.000, 38)
+                                    new Pose(44.000, 40),
+                                    new Pose(24.000, 40)
                             )
                     )
                     .setConstantHeadingInterpolation(Math.toRadians(180))
@@ -525,11 +569,11 @@ public class NineBallBlueAuto extends LinearOpMode {
                     .pathBuilder()
                     .addPath(
                             new BezierLine(
-                                    new Pose(24.000, 38),
+                                    new Pose(24.000, 40),
                                     new Pose(48.000, 96.000)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(315))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(320))
                     .build();
 
             // === ending = Path12 ===

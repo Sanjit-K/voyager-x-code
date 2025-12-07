@@ -71,14 +71,14 @@ public class BlueAuto extends LinearOpMode {
     private final int[][][] volleyOrdersByMotif = new int[][][]{
             // motif 0: GPP
             {
-                    {2, 0, 1}, // preset
+                    {1, 2, 0}, // preset
                     {1, 2, 0}, // first
                     {0, 1, 2}, // second
                     {2, 1, 0}  // third
             },
             // motif 1: PGP  (placeholder, change to what you want)
             {
-                    {2, 0, 1},
+                    {0, 2, 1},
                     {0, 2, 1},
                     {1, 0, 2},
                     {1, 2, 0}
@@ -148,7 +148,7 @@ public class BlueAuto extends LinearOpMode {
         // Basic startup config (auto-intaking and spinning shooter)
         spindexer.setShootIndex(0);
         kickerServo.normal();
-        shooter.setPower(0.9);
+        shooter.setPower(0.77);
 
         intake.spinIntake();
         intakeFlap.off();
@@ -453,19 +453,20 @@ public class BlueAuto extends LinearOpMode {
                                     new Pose(48.000, 96.000)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(315))
+                    .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(320))
                     .build();
 
             // === preparepickup1 = line2 ===
             preparepickup1 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(
+                            new BezierCurve(
                                     new Pose(48.000, 96.000),
+                                    new Pose(61.300, 86.100),
                                     new Pose(45.000, 84.500)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(180))
+                    .setLinearHeadingInterpolation(Math.toRadians(320), Math.toRadians(180))
                     .build();
 
             // === pickup1 = line3 ===
@@ -487,7 +488,7 @@ public class BlueAuto extends LinearOpMode {
                             new BezierCurve(
                                     new Pose(24.000, 84.500),
                                     new Pose(28.000, 80.000),
-                                    new Pose(15.000, 78.000)
+                                    new Pose(16.000, 73.500)
                             )
                     )
                     .setConstantHeadingInterpolation(Math.toRadians(180))
@@ -498,11 +499,11 @@ public class BlueAuto extends LinearOpMode {
                     .pathBuilder()
                     .addPath(
                             new BezierLine(
-                                    new Pose(15.000, 78.000),
+                                    new Pose(16.000, 73.500),
                                     new Pose(48.000, 96.000)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(315))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(320))
                     .build();
 
             // === preparepickup2 = Path6 (BezierCurve) ===
@@ -512,10 +513,10 @@ public class BlueAuto extends LinearOpMode {
                             new BezierCurve(
                                     new Pose(48.000, 96.000),
                                     new Pose(64.958, 60.029),
-                                    new Pose(42.425, 60)
+                                    new Pose(44, 60)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(180))
+                    .setLinearHeadingInterpolation(Math.toRadians(320), Math.toRadians(180))
                     .build();
 
             // === pickup2 = line7 ===
@@ -523,7 +524,7 @@ public class BlueAuto extends LinearOpMode {
                     .pathBuilder()
                     .addPath(
                             new BezierLine(
-                                    new Pose(42.425, 60),
+                                    new Pose(44, 60),
                                     new Pose(24.000, 60)
                             )
                     )
@@ -539,7 +540,7 @@ public class BlueAuto extends LinearOpMode {
                                     new Pose(48.000, 96.000)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(315))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(320))
                     .build();
 
             // === preparepickup3 = Path9 (BezierCurve) ===
@@ -549,10 +550,10 @@ public class BlueAuto extends LinearOpMode {
                             new BezierCurve(
                                     new Pose(48.000, 96.000),
                                     new Pose(79.746, 31.863),
-                                    new Pose(42.000, 38)
+                                    new Pose(44.000, 40)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(180))
+                    .setLinearHeadingInterpolation(Math.toRadians(320), Math.toRadians(180))
                     .build();
 
             // === pickup3 = line10 ===
@@ -560,8 +561,8 @@ public class BlueAuto extends LinearOpMode {
                     .pathBuilder()
                     .addPath(
                             new BezierLine(
-                                    new Pose(42.000, 38),
-                                    new Pose(24.000, 38)
+                                    new Pose(44.000, 40),
+                                    new Pose(24.000, 40)
                             )
                     )
                     .setConstantHeadingInterpolation(Math.toRadians(180))
@@ -572,11 +573,11 @@ public class BlueAuto extends LinearOpMode {
                     .pathBuilder()
                     .addPath(
                             new BezierLine(
-                                    new Pose(24.000, 38),
+                                    new Pose(24.000, 40),
                                     new Pose(48.000, 96.000)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(315))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(320))
                     .build();
 
             // === ending = Path12 ===
