@@ -12,7 +12,11 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.util.ElapsedTime;
-
+import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import org.firstinspires.ftc.vision.VisionPortal;
+import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
+import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
+import java.util.List;
 import org.firstinspires.ftc.teamcode.intake.BarIntake;
 import org.firstinspires.ftc.teamcode.intake.IntakeFlap;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
@@ -32,6 +36,8 @@ public class BlueNoOverflow extends LinearOpMode {
     private Follower follower;
     private Pose currentPose;
     private TelemetryManager panelsTelemetry;
+    private int lastShootIndex = -1;
+
 
     // Robot subsystems
     private BarIntake intake;
@@ -55,12 +61,47 @@ public class BlueNoOverflow extends LinearOpMode {
     private static final int NORMAL_DELAY = 200;
     private static final int FULL_CYCLE = SHOOT_DELAY + KICK_DELAY + NORMAL_DELAY;
 
+    private int volleyStep = 0;
+    private final ElapsedTime volleyStepTimer = new ElapsedTime();
+
+    private String shootIndexHistory = "";
+
+
+    // -------- AprilTag motif detection --------
+    private static final int TAG_GPP = 21;
+    private static final int TAG_PGP = 22;
+    private static final int TAG_PPG = 23;
+
+    private VisionPortal visionPortal;
+    private AprilTagProcessor aprilTag;
+
+
     // Per-volley shoot orders: which spindex slots to fire in which order
     // 0 = preset, 1 = first cycle, 2 = second cycle, 3 = third cycle
     // Motif type
     private enum Motif {
         GPP, PGP, PPG
     }
+
+    private void setShootIndexOnce(int index) {
+        if (lastShootIndex != index) {
+            spindexer.setShootIndex(index);
+            lastShootIndex = index;
+
+            // Append to history (keep it short)
+            shootIndexHistory += " → " + index;
+            if (shootIndexHistory.length() > 40) {
+                shootIndexHistory = shootIndexHistory.substring(
+                        shootIndexHistory.length() - 40
+                );
+            }
+
+            telemetry.addData("ShootIndex Cmd", index);
+            telemetry.addData("ShootIndex Seq", shootIndexHistory);
+        }
+    }
+
+
 
     // TODO: get from webcam
     private Motif motif = Motif.GPP;  // default
@@ -92,6 +133,19 @@ public class BlueNoOverflow extends LinearOpMode {
             }
     };
 
+    private void initAprilTag() {
+        aprilTag = new AprilTagProcessor.Builder().build();
+        aprilTag.setDecimation(2);
+
+        visionPortal = new VisionPortal.Builder()
+                .setCamera(hardwareMap.get(WebcamName.class, "webcam"))
+                .addProcessor(aprilTag)
+                .build();
+    }
+
+
+
+
     // Active orders for the current motif
     private int[][] volleyOrders;      // [volleyIndex][ball# 0..2]
     private int currentVolley = 0;
@@ -109,6 +163,8 @@ public class BlueNoOverflow extends LinearOpMode {
     private final ElapsedTime detectedTimer = new ElapsedTime();
     private static final int DETECTED_DELAY = 300;
     private String colorLog;
+    private boolean motifLocked = false;
+
 
     // Logging
     private void log(String caption, Object... text) {
@@ -126,16 +182,57 @@ public class BlueNoOverflow extends LinearOpMode {
         }
     }
 
+    private void scanMotifAtShoot() {
+        if (motifLocked || aprilTag == null) return;
+
+        List<AprilTagDetection> detections = aprilTag.getDetections();
+
+        for (AprilTagDetection det : detections) {
+            if (det.metadata == null) continue;
+
+            switch (det.id) {
+                case TAG_GPP:
+                    motif = Motif.GPP;
+                    break;
+                case TAG_PGP:
+                    motif = Motif.PGP;
+                    break;
+                case TAG_PPG:
+                    motif = Motif.PPG;
+                    break;
+                default:
+                    continue;
+            }
+
+            // Apply motif
+            volleyOrders = volleyOrdersByMotif[motif.ordinal()];
+            motifLocked = true;
+
+            telemetry.addData("Motif Locked", motif);
+            telemetry.update();
+
+            // Shut down camera
+            if (visionPortal != null) {
+                visionPortal.close();
+                visionPortal = null;
+            }
+
+            break;
+        }
+    }
+
+
     @Override
     public void runOpMode() {
-        // Panels + Pedro
+
+        // ---------- Panels + Pedro ----------
         panelsTelemetry = PanelsTelemetry.INSTANCE.getTelemetry();
         follower = Constants.createFollower(hardwareMap);
 
         // Start pose = first point of shootpreset path
         follower.setStartingPose(new Pose(22, 121, Math.toRadians(315)));
 
-        // Subsystems
+        // ---------- Subsystems ----------
         intake = new BarIntake(hardwareMap, "intakeMotor", false);
         shooter = new Shooter(hardwareMap, "shooterMotor", false);
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
@@ -145,7 +242,7 @@ public class BlueNoOverflow extends LinearOpMode {
         distanceSensor = hardwareMap.get(DigitalChannel.class, "distanceSensor");
         distanceSensor.setMode(DigitalChannel.Mode.INPUT);
 
-        // Basic startup config (auto-intaking and spinning shooter)
+        // ---------- Basic startup config ----------
         spindexer.setShootIndex(0);
         kickerServo.normal();
         shooter.setPower(0.77);
@@ -153,34 +250,49 @@ public class BlueNoOverflow extends LinearOpMode {
         intake.spinIntake();
         intakeFlap.off();
 
-        // Build all paths
-        paths = new Paths(follower);
+        // ---------- Default motif until locked ----------
+        motif = Motif.GPP;
+        volleyOrders = volleyOrdersByMotif[motif.ordinal()];
 
-        volleyOrders = volleyOrdersByMotif[motif.ordinal()]; //.ordinal() js finds the index coresponding to the motif
+        telemetry.addData("Motif (default)", motif);
+        telemetry.update();
+
+        // ---------- Build paths ----------
+        paths = new Paths(follower);
 
         log("Status", "Initialized");
         telemetry.update();
 
+        // ---------- WAIT FOR START ----------
         waitForStart();
         if (isStopRequested()) return;
 
+        // ---------- Start camera AFTER start ----------
+        initAprilTag();
+
+        // ---------- Reset timers / state ----------
         runtime.reset();
         threeShotTimer.reset();
         detectedTimer.reset();
         setPathState(0);
 
+        // ---------- Main loop ----------
         while (opModeIsActive()) {
+
             shooter.on();
             follower.update();
             panelsTelemetry.update();
             currentPose = follower.getPose();
 
-            // -------- automatic advancing spindexer logic (from TeleOp) --------
+            // -------- automatic advancing spindexer logic --------
             detected = distanceSensor.getState();
 
-            if (detected && !spindexer.isFull()
+            if (detected
+                    && !spindexer.isFull()
                     && detectedTimer.milliseconds() > DETECTED_DELAY
-                    && !threeShotActive && spindexAllowed) {
+                    && spindexAllowed
+                    && !threeShotActive
+                    && pathState != 1) {
 
                 spindexer.setColorAtPos('#');
 
@@ -188,12 +300,12 @@ public class BlueNoOverflow extends LinearOpMode {
                     spindexer.advanceIntake();
                     rightPos = false;
                 } else {
-                    spindexer.setShootIndex(2);
+                    setShootIndexOnce(2);
                 }
 
                 detectedTimer.reset();
             }
-            // --------------------------------------------------------------------
+            // -----------------------------------------------------
 
             updateStateMachine();
 
@@ -201,6 +313,8 @@ public class BlueNoOverflow extends LinearOpMode {
             log("X", currentPose.getX());
             log("Y", currentPose.getY());
             log("Heading", currentPose.getHeading());
+            log("ShootIndex Seq", shootIndexHistory);
+            log("motif", motif);
             telemetry.update();
         }
     }
@@ -209,10 +323,17 @@ public class BlueNoOverflow extends LinearOpMode {
 
     private void startThreeShotVolley(int volleyIndex) {
         intakeFlap.on();
-        currentVolley = volleyIndex;   // which of the 4 patterns (0..3)
+        currentVolley = volleyIndex;
+        spindexAllowed = false;
         threeShotActive = true;
-        threeShotTimer.reset();
+
+        lastShootIndex = -1;
+
+        volleyStep = 0;
+        volleyStepTimer.reset();
+        threeShotTimer.reset(); // optional, can remove if not used elsewhere
     }
+
 
 
 
@@ -224,65 +345,101 @@ public class BlueNoOverflow extends LinearOpMode {
     private boolean updateThreeShotVolley() {
         if (!threeShotActive) return true;
 
-        double t = threeShotTimer.milliseconds();
-        int fd = rightPos ? SHOOT_DELAY : 0;
-
-        // Get order for this volley and motif
         int[] order = volleyOrders[currentVolley];
         int firstSlot  = order[0];
         int secondSlot = order[1];
         int thirdSlot  = order[2];
+
         spindexAllowed = false;
-
-
-
         intake.spinOuttake(0.3);
 
-        // ball 1
-        if (t > 0 && t < SHOOT_DELAY - fd) {
-            spindexer.setShootIndex(firstSlot);
-        }
-        if (t > SHOOT_DELAY - fd && t < SHOOT_DELAY + KICK_DELAY - fd) {
-            kickAndClearIndex(firstSlot);
-        }
-        if (t > SHOOT_DELAY + KICK_DELAY - fd && t < FULL_CYCLE - fd) {
-            kickerServo.normal();
-        }
+        double t = volleyStepTimer.milliseconds();
 
-        // ball 2
-        if (t > FULL_CYCLE - fd && t < FULL_CYCLE + SHOOT_DELAY - fd) {
-            spindexer.setShootIndex(secondSlot);
-        }
-        if (t > FULL_CYCLE + SHOOT_DELAY - fd && t < 2 * FULL_CYCLE - NORMAL_DELAY - fd) {
-            kickAndClearIndex(secondSlot);
-        }
-        if (t > 2 * FULL_CYCLE - NORMAL_DELAY - fd && t < 2 * FULL_CYCLE - fd) {
-            kickerServo.normal();
-        }
+        switch (volleyStep) {
 
-        // ball 3
-        if (t > 2 * FULL_CYCLE - fd && t < 2 * FULL_CYCLE + SHOOT_DELAY - fd) {
-            spindexer.setShootIndex(thirdSlot);
-        }
-        if (t > 2 * FULL_CYCLE + SHOOT_DELAY - fd && t < 3 * FULL_CYCLE - NORMAL_DELAY - fd) {
-            kickAndClearIndex(thirdSlot);
-        }
-        if (t > 3 * FULL_CYCLE - NORMAL_DELAY - fd && t < 3 * FULL_CYCLE - fd) {
-            kickerServo.normal();
-        }
+            // ----- Ball 1 -----
+            case 0: // aim ball 1
+                setShootIndexOnce(firstSlot);
+                if (t >= SHOOT_DELAY) {
+                    volleyStep++;
+                    volleyStepTimer.reset();
+                }
+                break;
 
-        if (t > 3 * FULL_CYCLE + 200 - fd) {
-            intakeIndex = 0;
-            intake.spinIntake();
-            intakeFlap.off();
-            spindexer.setIntakeIndex(intakeIndex);
-            threeShotActive = false;
-            rightPos = false;
-            return true;
+            case 1: // kick ball 1 (ONLY ONCE)
+                kickAndClearIndex(firstSlot);
+                volleyStep++;
+                volleyStepTimer.reset();
+                break;
+
+            case 2: // return kicker to normal after kick delay
+                if (t >= KICK_DELAY) {
+                    kickerServo.normal();
+                    volleyStep++;
+                    volleyStepTimer.reset();
+                }
+                break;
+
+            // ----- Ball 2 -----
+            case 3:
+                setShootIndexOnce(secondSlot);
+                if (t >= SHOOT_DELAY) {
+                    volleyStep++;
+                    volleyStepTimer.reset();
+                }
+                break;
+
+            case 4:
+                kickAndClearIndex(secondSlot);
+                volleyStep++;
+                volleyStepTimer.reset();
+                break;
+
+            case 5:
+                if (t >= KICK_DELAY) {
+                    kickerServo.normal();
+                    volleyStep++;
+                    volleyStepTimer.reset();
+                }
+                break;
+
+            // ----- Ball 3 -----
+            case 6:
+                setShootIndexOnce(thirdSlot);
+                if (t >= SHOOT_DELAY) {
+                    volleyStep++;
+                    volleyStepTimer.reset();
+                }
+                break;
+
+            case 7:
+                kickAndClearIndex(thirdSlot);
+                volleyStep++;
+                volleyStepTimer.reset();
+                break;
+
+            case 8:
+                if (t >= KICK_DELAY) {
+                    kickerServo.normal();
+                    volleyStep++;
+                    volleyStepTimer.reset();
+                }
+                break;
+
+            // ----- Done -----
+            default:
+                intakeIndex = 0;
+                intake.spinIntake();
+                intakeFlap.off();
+                spindexer.setIntakeIndex(intakeIndex);
+                threeShotActive = false;
+                rightPos = false;
+                return true;
         }
 
         return false;
     }
+
 
 
 
@@ -306,14 +463,22 @@ public class BlueNoOverflow extends LinearOpMode {
                 setPathState(1);
                 break;
 
-            case 1: // preset volley
+            case 1: // preset volley (shoot position 1)
                 if (!follower.isBusy()) {
+
+                    // Scan AprilTag while stationary and aiming
+                    scanMotifAtShoot();
+
+                    // 🚨 HARD BLOCK: do NOT shoot until motif is locked
+                    if (!motifLocked) {
+                        return; // stay here, keep scanning
+                    }
+
+                    // Once motif is locked, allow first volley
                     if (!volleyFinishedThisLoop) {
-                        // have not shot yet in this state → start volley 0
                         startThreeShotVolley(0);
                         return;
                     } else {
-                        // volley 0 just finished this loop → move to lane 1
                         spindexAllowed = true;
                         follower.followPath(paths.preparepickup1);
                         setPathState(2);
@@ -449,7 +614,7 @@ public class BlueNoOverflow extends LinearOpMode {
                                     new Pose(48.000, 96.000)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(320))
+                    .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(313))
                     .build();
 
             // === preparepickup1 = line2 ===
@@ -462,7 +627,7 @@ public class BlueNoOverflow extends LinearOpMode {
                                     new Pose(45.000, 84.500)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(320), Math.toRadians(180))
+                    .setLinearHeadingInterpolation(Math.toRadians(313), Math.toRadians(180))
                     .build();
 
             // === pickup1 = line3 ===
@@ -499,7 +664,7 @@ public class BlueNoOverflow extends LinearOpMode {
                                     new Pose(48.000, 96.000)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(320))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(313))
                     .build();
 
             // === preparepickup2 = Path6 (BezierCurve) ===
@@ -512,7 +677,7 @@ public class BlueNoOverflow extends LinearOpMode {
                                     new Pose(44, 60)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(320), Math.toRadians(180))
+                    .setLinearHeadingInterpolation(Math.toRadians(313), Math.toRadians(180))
                     .build();
 
             // === pickup2 = line7 ===
@@ -536,7 +701,7 @@ public class BlueNoOverflow extends LinearOpMode {
                                     new Pose(48.000, 96.000)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(320))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(313))
                     .build();
 
             // === preparepickup3 = Path9 (BezierCurve) ===
@@ -549,7 +714,7 @@ public class BlueNoOverflow extends LinearOpMode {
                                     new Pose(44.000, 40)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(320), Math.toRadians(180))
+                    .setLinearHeadingInterpolation(Math.toRadians(313), Math.toRadians(180))
                     .build();
 
             // === pickup3 = line10 ===
@@ -573,7 +738,7 @@ public class BlueNoOverflow extends LinearOpMode {
                                     new Pose(48.000, 96.000)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(320))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(313))
                     .build();
 
             // === ending = Path12 ===

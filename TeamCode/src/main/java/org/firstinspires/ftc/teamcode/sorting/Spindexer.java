@@ -4,6 +4,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 import org.firstinspires.ftc.teamcode.shooting.KickerServo;
 
+//0 is too right.  1 is too left.  2 is too right.    outtake: 0 is too left, 1 is good, 2 is too right.
 
 public class Spindexer {
     private final Servo spindexerServo;
