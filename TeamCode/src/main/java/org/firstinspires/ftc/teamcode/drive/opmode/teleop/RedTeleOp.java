@@ -27,9 +27,9 @@ import com.qualcomm.robotcore.hardware.DigitalChannel;
 
 @Configurable
 @TeleOp
-public class BlueTeleOp extends OpMode {
+public class RedTeleOp extends OpMode {
     private Follower follower;
-    public static Pose startingPose = new Pose(48, 70, Math.toRadians(313));
+    public static Pose startingPose = new Pose(144-48, 70, Math.toRadians(223));
     private TelemetryManager telemetryM;
     private LockMode lockMode;
     private BarIntake intake;
@@ -79,7 +79,7 @@ public class BlueTeleOp extends OpMode {
 
     private final int DETECTED_DELAY = 300;
 
-    private final double offset = Math.toRadians(180.0); // Alliance POV offset: 180 = Blue, 0 = Red
+    private final double offset = Math.toRadians(0); // Alliance POV offset: 180 = Blue, 0 = Red
 
     /* Debugging stuff */
     private int detectedCount = 0;
@@ -133,7 +133,6 @@ public class BlueTeleOp extends OpMode {
 
         follower.update();
 
-        // --- LockMode control on left trigger > 0.5 ---
         boolean lockRequested = gamepad1.left_trigger > 0.5;
         if (lockRequested) {
             // While held, keep lock mode active
@@ -142,8 +141,7 @@ public class BlueTeleOp extends OpMode {
             // When released, ensure we unlock position
             lockMode.unlockPosition();
         }
-
-        // manual override cancels path (only if not in lock mode)
+        // manual override cancels path
         if (manualInputDetected && automatedDriveEnabled) {
             follower.breakFollowing();      // or whatever your version supports
             follower.startTeleopDrive();
@@ -156,8 +154,8 @@ public class BlueTeleOp extends OpMode {
             automatedDriveEnabled = false;
         }
 
-        // only one teleop drive call when not locked and not in automated mode
-        if (!automatedDriveEnabled && !lockRequested) {
+        // only one teleop drive call
+        if (!automatedDriveEnabled) {
             follower.setTeleOpDrive(
                     -gamepad1.left_stick_y,
                     -gamepad1.left_stick_x,

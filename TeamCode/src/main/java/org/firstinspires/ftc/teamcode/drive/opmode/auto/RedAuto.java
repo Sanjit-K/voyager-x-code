@@ -24,10 +24,10 @@ import org.firstinspires.ftc.teamcode.shooting.KickerServo;
 import org.firstinspires.ftc.teamcode.shooting.Shooter;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 
-@Autonomous(name = "Blue Auto no overflow", group = "Opmode")
+@Autonomous(name = "Red Auto", group = "Opmode")
 @Configurable
 @SuppressWarnings("FieldCanBeLocal")
-public class BlueNoOverflow extends LinearOpMode {
+public class RedAuto extends LinearOpMode {
 
     // Timer
     private final ElapsedTime runtime = new ElapsedTime();
@@ -230,7 +230,7 @@ public class BlueNoOverflow extends LinearOpMode {
         follower = Constants.createFollower(hardwareMap);
 
         // Start pose = first point of shootpreset path
-        follower.setStartingPose(new Pose(22, 121, Math.toRadians(315)));
+        follower.setStartingPose(new Pose(144-22, 121, Math.toRadians(225)));
 
         // ---------- Subsystems ----------
         intake = new BarIntake(hardwareMap, "intakeMotor", false);
@@ -617,11 +617,11 @@ public class BlueNoOverflow extends LinearOpMode {
                     .pathBuilder()
                     .addPath(
                             new BezierLine(
-                                    new Pose(22.000, 121.000),
-                                    new Pose(48.000, 96.000)
+                                    new Pose(144-22.000, 121.000),
+                                    new Pose(144-48.000, 96.000)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(313))
+                    .setLinearHeadingInterpolation(Math.toRadians(225), Math.toRadians(223))
                     .build();
 
             // === preparepickup1 = line2 ===
@@ -629,12 +629,12 @@ public class BlueNoOverflow extends LinearOpMode {
                     .pathBuilder()
                     .addPath(
                             new BezierCurve(
-                                    new Pose(48.000, 96.000),
-                                    new Pose(61.300, 86.100),
-                                    new Pose(45.000, 84.500)
+                                    new Pose(144-48.000, 96.000),
+                                    new Pose(144-61.300, 86.100),
+                                    new Pose(144-45.000, 84.500)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(313), Math.toRadians(180))
+                    .setLinearHeadingInterpolation(Math.toRadians(223), Math.toRadians(0))
                     .build();
 
             // === pickup1 = line3 ===
@@ -642,11 +642,11 @@ public class BlueNoOverflow extends LinearOpMode {
                     .pathBuilder()
                     .addPath(
                             new BezierLine(
-                                    new Pose(45.000, 84.500),
-                                    new Pose(28.000, 84.500)
+                                    new Pose(144-45.000, 84.500),
+                                    new Pose(144-28.000, 84.500)
                             )
                     )
-                    .setConstantHeadingInterpolation(Math.toRadians(180))
+                    .setConstantHeadingInterpolation(Math.toRadians(0))
                     .build();
 
             // === overflow = line4 (BezierCurve) ===
@@ -654,12 +654,12 @@ public class BlueNoOverflow extends LinearOpMode {
                     .pathBuilder()
                     .addPath(
                             new BezierCurve(
-                                    new Pose(24.000, 84.500),
-                                    new Pose(28.000, 80.000),
-                                    new Pose(16.000, 73.500)
+                                    new Pose(144-24.000, 84.500),
+                                    new Pose(144-28.000, 80.000),
+                                    new Pose(144-16.000, 73.500)
                             )
                     )
-                    .setConstantHeadingInterpolation(Math.toRadians(180))
+                    .setConstantHeadingInterpolation(Math.toRadians(0))
                     .build();
 
             // === shoot1 = line5 ===
@@ -667,11 +667,11 @@ public class BlueNoOverflow extends LinearOpMode {
                     .pathBuilder()
                     .addPath(
                             new BezierLine(
-                                    new Pose(28.000, 84.500),
-                                    new Pose(48.000, 96.000)
+                                    new Pose(144-28.000, 84.500),
+                                    new Pose(144-48.000, 96.000)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(313))
+                    .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(223))
                     .build();
 
             // === preparepickup2 = Path6 (BezierCurve) ===
@@ -679,12 +679,12 @@ public class BlueNoOverflow extends LinearOpMode {
                     .pathBuilder()
                     .addPath(
                             new BezierCurve(
-                                    new Pose(48.000, 96.000),
-                                    new Pose(64.958, 60.029),
-                                    new Pose(44, 60)
+                                    new Pose(144-48.000, 96.000),
+                                    new Pose(144-64.958, 60.029),
+                                    new Pose(144-44, 60)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(313), Math.toRadians(180))
+                    .setLinearHeadingInterpolation(Math.toRadians(223), Math.toRadians(0))
                     .build();
 
             // === pickup2 = line7 ===
@@ -692,11 +692,11 @@ public class BlueNoOverflow extends LinearOpMode {
                     .pathBuilder()
                     .addPath(
                             new BezierLine(
-                                    new Pose(44, 60),
-                                    new Pose(28.000, 60)
+                                    new Pose(144-44, 60),
+                                    new Pose(144-28.000, 60)
                             )
                     )
-                    .setConstantHeadingInterpolation(Math.toRadians(180))
+                    .setConstantHeadingInterpolation(Math.toRadians(0))
                     .build();
 
             // === shoot2 = line8 ===
@@ -704,11 +704,11 @@ public class BlueNoOverflow extends LinearOpMode {
                     .pathBuilder()
                     .addPath(
                             new BezierLine(
-                                    new Pose(28.000, 60),
-                                    new Pose(48.000, 96.000)
+                                    new Pose(144-28.000, 60),
+                                    new Pose(144-48.000, 96.000)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(313))
+                    .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(223))
                     .build();
 
             // === preparepickup3 = Path9 (BezierCurve) ===
@@ -716,12 +716,12 @@ public class BlueNoOverflow extends LinearOpMode {
                     .pathBuilder()
                     .addPath(
                             new BezierCurve(
-                                    new Pose(48.000, 96.000),
-                                    new Pose(79.746, 31.863),
-                                    new Pose(44.000, 40)
+                                    new Pose(144-48.000, 96.000),
+                                    new Pose(144-79.746, 31.863),
+                                    new Pose(144-44.000, 40)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(313), Math.toRadians(180))
+                    .setLinearHeadingInterpolation(Math.toRadians(223), Math.toRadians(0))
                     .build();
 
             // === pickup3 = line10 ===
@@ -729,11 +729,11 @@ public class BlueNoOverflow extends LinearOpMode {
                     .pathBuilder()
                     .addPath(
                             new BezierLine(
-                                    new Pose(44.000, 40),
-                                    new Pose(28.000, 40)
+                                    new Pose(144-44.000, 40),
+                                    new Pose(144-28.000, 40)
                             )
                     )
-                    .setConstantHeadingInterpolation(Math.toRadians(180))
+                    .setConstantHeadingInterpolation(Math.toRadians(0))
                     .build();
 
             // === shoot3 = line11 ===
@@ -741,11 +741,11 @@ public class BlueNoOverflow extends LinearOpMode {
                     .pathBuilder()
                     .addPath(
                             new BezierLine(
-                                    new Pose(28.000, 40),
-                                    new Pose(48.000, 96.000)
+                                    new Pose(144-28.000, 40),
+                                    new Pose(144-48.000, 96.000)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(313))
+                    .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(223))
                     .build();
 
             // === ending = Path12 ===
@@ -753,11 +753,11 @@ public class BlueNoOverflow extends LinearOpMode {
                     .pathBuilder()
                     .addPath(
                             new BezierLine(
-                                    new Pose(48.000, 96.000),
-                                    new Pose(48, 70)
+                                    new Pose(144-48.000, 96.000),
+                                    new Pose(144-48, 70)
                             )
                     )
-                    .setConstantHeadingInterpolation(Math.toRadians(313))
+                    .setConstantHeadingInterpolation(Math.toRadians(223))
                     .build();
         }
     }
