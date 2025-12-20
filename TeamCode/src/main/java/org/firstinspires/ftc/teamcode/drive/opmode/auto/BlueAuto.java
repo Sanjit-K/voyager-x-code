@@ -12,7 +12,11 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.util.ElapsedTime;
-
+import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import org.firstinspires.ftc.vision.VisionPortal;
+import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
+import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
+import java.util.List;
 import org.firstinspires.ftc.teamcode.intake.BarIntake;
 import org.firstinspires.ftc.teamcode.intake.IntakeFlap;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
@@ -20,7 +24,7 @@ import org.firstinspires.ftc.teamcode.shooting.KickerServo;
 import org.firstinspires.ftc.teamcode.shooting.Shooter;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 
-@Autonomous(name = "Blue Auto Decode", group = "Opmode")
+@Autonomous(name = "Blue Auto", group = "Opmode")
 @Configurable
 @SuppressWarnings("FieldCanBeLocal")
 public class BlueAuto extends LinearOpMode {
@@ -32,6 +36,8 @@ public class BlueAuto extends LinearOpMode {
     private Follower follower;
     private Pose currentPose;
     private TelemetryManager panelsTelemetry;
+    private int lastShootIndex = -1;
+
 
     // Robot subsystems
     private BarIntake intake;
@@ -50,10 +56,25 @@ public class BlueAuto extends LinearOpMode {
     // 3-shot volley state
     private boolean threeShotActive = false;
     private final ElapsedTime threeShotTimer = new ElapsedTime();
-    private static final int SHOOT_DELAY = 500;
+    private static final int SHOOT_DELAY = 450;
     private static final int KICK_DELAY = 250;
     private static final int NORMAL_DELAY = 200;
     private static final int FULL_CYCLE = SHOOT_DELAY + KICK_DELAY + NORMAL_DELAY;
+
+    private int volleyStep = 0;
+    private final ElapsedTime volleyStepTimer = new ElapsedTime();
+
+    private String shootIndexHistory = "";
+
+
+    // -------- AprilTag motif detection --------
+    private static final int TAG_GPP = 21;
+    private static final int TAG_PGP = 22;
+    private static final int TAG_PPG = 23;
+
+    private VisionPortal visionPortal;
+    private AprilTagProcessor aprilTag;
+
 
     // Per-volley shoot orders: which spindex slots to fire in which order
     // 0 = preset, 1 = first cycle, 2 = second cycle, 3 = third cycle
@@ -61,6 +82,26 @@ public class BlueAuto extends LinearOpMode {
     private enum Motif {
         GPP, PGP, PPG
     }
+
+    private void setShootIndexOnce(int index) {
+        if (lastShootIndex != index) {
+            spindexer.setShootIndex(index);
+            lastShootIndex = index;
+
+            // Append to history (keep it short)
+            shootIndexHistory += " → " + index;
+            if (shootIndexHistory.length() > 40) {
+                shootIndexHistory = shootIndexHistory.substring(
+                        shootIndexHistory.length() - 40
+                );
+            }
+
+            telemetry.addData("ShootIndex Cmd", index);
+            telemetry.addData("ShootIndex Seq", shootIndexHistory);
+        }
+    }
+
+
 
     // TODO: get from webcam
     private Motif motif = Motif.GPP;  // default
@@ -71,26 +112,39 @@ public class BlueAuto extends LinearOpMode {
     private final int[][][] volleyOrdersByMotif = new int[][][]{
             // motif 0: GPP
             {
-                    {1, 2, 0}, // preset
-                    {1, 2, 0}, // first
-                    {0, 1, 2}, // second
-                    {2, 1, 0}  // third
+                    {2, 0, 1}, // preset
+                    {2, 0, 1}, // first
+                    {1, 0, 2}, // second
+                    {0, 1, 2}  // third
             },
             // motif 1: PGP  (placeholder, change to what you want)
             {
                     {0, 2, 1},
                     {0, 2, 1},
-                    {1, 0, 2},
-                    {1, 2, 0}
+                    {0, 1, 2},
+                    {2, 0, 1}
             },
             // motif 2: PPG  (placeholder, change to what you want)
             {
+                    {0, 1, 2},
+                    {0, 1, 2},
                     {2, 0, 1},
-                    {2, 0, 1},
-                    {1, 2, 0},
-                    {2, 1, 0}
+                    {0, 1, 2}
             }
     };
+
+    private void initAprilTag() {
+        aprilTag = new AprilTagProcessor.Builder().build();
+        aprilTag.setDecimation(2);
+
+        visionPortal = new VisionPortal.Builder()
+                .setCamera(hardwareMap.get(WebcamName.class, "webcam"))
+                .addProcessor(aprilTag)
+                .build();
+    }
+
+
+
 
     // Active orders for the current motif
     private int[][] volleyOrders;      // [volleyIndex][ball# 0..2]
@@ -109,6 +163,8 @@ public class BlueAuto extends LinearOpMode {
     private final ElapsedTime detectedTimer = new ElapsedTime();
     private static final int DETECTED_DELAY = 300;
     private String colorLog;
+    private boolean motifLocked = false;
+
 
     // Logging
     private void log(String caption, Object... text) {
@@ -126,16 +182,57 @@ public class BlueAuto extends LinearOpMode {
         }
     }
 
+    private void scanMotifAtShoot() {
+        if (motifLocked || aprilTag == null) return;
+
+        List<AprilTagDetection> detections = aprilTag.getDetections();
+
+        for (AprilTagDetection det : detections) {
+            if (det.metadata == null) continue;
+
+            switch (det.id) {
+                case TAG_GPP:
+                    motif = Motif.GPP;
+                    break;
+                case TAG_PGP:
+                    motif = Motif.PGP;
+                    break;
+                case TAG_PPG:
+                    motif = Motif.PPG;
+                    break;
+                default:
+                    continue;
+            }
+
+            // Apply motif
+            volleyOrders = volleyOrdersByMotif[motif.ordinal()];
+            motifLocked = true;
+
+            telemetry.addData("Motif Locked", motif);
+            telemetry.update();
+
+            // Shut down camera
+            if (visionPortal != null) {
+                visionPortal.close();
+                visionPortal = null;
+            }
+
+            break;
+        }
+    }
+
+
     @Override
     public void runOpMode() {
-        // Panels + Pedro
+
+        // ---------- Panels + Pedro ----------
         panelsTelemetry = PanelsTelemetry.INSTANCE.getTelemetry();
         follower = Constants.createFollower(hardwareMap);
 
         // Start pose = first point of shootpreset path
         follower.setStartingPose(new Pose(22, 121, Math.toRadians(315)));
 
-        // Subsystems
+        // ---------- Subsystems ----------
         intake = new BarIntake(hardwareMap, "intakeMotor", false);
         shooter = new Shooter(hardwareMap, "shooterMotor", false);
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
@@ -145,42 +242,58 @@ public class BlueAuto extends LinearOpMode {
         distanceSensor = hardwareMap.get(DigitalChannel.class, "distanceSensor");
         distanceSensor.setMode(DigitalChannel.Mode.INPUT);
 
-        // Basic startup config (auto-intaking and spinning shooter)
+        // ---------- Basic startup config ----------
         spindexer.setShootIndex(0);
         kickerServo.normal();
-        shooter.setPower(0.77);
-
-        intake.spinIntake();
+        shooter.setPower(0.82);
+        shooter.off();
+        intake.stop();
         intakeFlap.off();
 
-        // Build all paths
-        paths = new Paths(follower);
+        // ---------- Default motif until locked ----------
+        motif = Motif.GPP;
+        volleyOrders = volleyOrdersByMotif[motif.ordinal()];
 
-        volleyOrders = volleyOrdersByMotif[motif.ordinal()]; //.ordinal() js finds the index coresponding to the motif
+        telemetry.addData("Motif (default)", motif);
+        telemetry.update();
+
+        // ---------- Build paths ----------
+        paths = new Paths(follower);
 
         log("Status", "Initialized");
         telemetry.update();
 
+        // ---------- WAIT FOR START ----------
         waitForStart();
         if (isStopRequested()) return;
 
+        // ---------- Start camera AFTER start ----------
+        initAprilTag();
+
+        // ---------- Reset timers / state ----------
         runtime.reset();
         threeShotTimer.reset();
         detectedTimer.reset();
         setPathState(0);
 
+        // ---------- Main loop ----------
         while (opModeIsActive()) {
+
             shooter.on();
+            intake.spinIntake();
             follower.update();
             panelsTelemetry.update();
             currentPose = follower.getPose();
 
-            // -------- automatic advancing spindexer logic (from TeleOp) --------
+            // -------- automatic advancing spindexer logic --------
             detected = distanceSensor.getState();
 
-            if (detected && !spindexer.isFull()
+            if (detected
+                    && !spindexer.isFull()
                     && detectedTimer.milliseconds() > DETECTED_DELAY
-                    && !threeShotActive && spindexAllowed) {
+                    && spindexAllowed
+                    && !threeShotActive
+                    && pathState != 1) {
 
                 spindexer.setColorAtPos('#');
 
@@ -188,12 +301,12 @@ public class BlueAuto extends LinearOpMode {
                     spindexer.advanceIntake();
                     rightPos = false;
                 } else {
-                    spindexer.setShootIndex(2);
+                    setShootIndexOnce(2);
                 }
 
                 detectedTimer.reset();
             }
-            // --------------------------------------------------------------------
+            // -----------------------------------------------------
 
             updateStateMachine();
 
@@ -201,6 +314,8 @@ public class BlueAuto extends LinearOpMode {
             log("X", currentPose.getX());
             log("Y", currentPose.getY());
             log("Heading", currentPose.getHeading());
+            log("ShootIndex Seq", shootIndexHistory);
+            log("motif", motif);
             telemetry.update();
         }
     }
@@ -209,10 +324,17 @@ public class BlueAuto extends LinearOpMode {
 
     private void startThreeShotVolley(int volleyIndex) {
         intakeFlap.on();
-        currentVolley = volleyIndex;   // which of the 4 patterns (0..3)
+        currentVolley = volleyIndex;
+        spindexAllowed = false;
         threeShotActive = true;
-        threeShotTimer.reset();
+
+        lastShootIndex = -1;
+
+        volleyStep = 0;
+        volleyStepTimer.reset();
+        threeShotTimer.reset(); // optional, can remove if not used elsewhere
     }
+
 
 
 
@@ -224,65 +346,107 @@ public class BlueAuto extends LinearOpMode {
     private boolean updateThreeShotVolley() {
         if (!threeShotActive) return true;
 
-        double t = threeShotTimer.milliseconds();
-        int fd = rightPos ? SHOOT_DELAY : 0;
-
-        // Get order for this volley and motif
         int[] order = volleyOrders[currentVolley];
         int firstSlot  = order[0];
         int secondSlot = order[1];
         int thirdSlot  = order[2];
+
         spindexAllowed = false;
-
-
-
         intake.spinOuttake(0.3);
 
-        // ball 1
-        if (t > 0 && t < SHOOT_DELAY - fd) {
-            spindexer.setShootIndex(firstSlot);
-        }
-        if (t > SHOOT_DELAY - fd && t < SHOOT_DELAY + KICK_DELAY - fd) {
-            kickAndClearIndex(firstSlot);
-        }
-        if (t > SHOOT_DELAY + KICK_DELAY - fd && t < FULL_CYCLE - fd) {
-            kickerServo.normal();
-        }
+        double t = volleyStepTimer.milliseconds();
 
-        // ball 2
-        if (t > FULL_CYCLE - fd && t < FULL_CYCLE + SHOOT_DELAY - fd) {
-            spindexer.setShootIndex(secondSlot);
-        }
-        if (t > FULL_CYCLE + SHOOT_DELAY - fd && t < 2 * FULL_CYCLE - NORMAL_DELAY - fd) {
-            kickAndClearIndex(secondSlot);
-        }
-        if (t > 2 * FULL_CYCLE - NORMAL_DELAY - fd && t < 2 * FULL_CYCLE - fd) {
-            kickerServo.normal();
-        }
+        switch (volleyStep) {
 
-        // ball 3
-        if (t > 2 * FULL_CYCLE - fd && t < 2 * FULL_CYCLE + SHOOT_DELAY - fd) {
-            spindexer.setShootIndex(thirdSlot);
-        }
-        if (t > 2 * FULL_CYCLE + SHOOT_DELAY - fd && t < 3 * FULL_CYCLE - NORMAL_DELAY - fd) {
-            kickAndClearIndex(thirdSlot);
-        }
-        if (t > 3 * FULL_CYCLE - NORMAL_DELAY - fd && t < 3 * FULL_CYCLE - fd) {
-            kickerServo.normal();
-        }
+            // ----- Ball 1 -----
+            case 0: // setShootIndex phase
+                setShootIndexOnce(firstSlot);
+                if (t >= SHOOT_DELAY) {
+                    volleyStep = 1;
+                    volleyStepTimer.reset();
+                }
+                break;
 
-        if (t > 3 * FULL_CYCLE + 200 - fd) {
-            intakeIndex = 0;
-            intake.spinIntake();
-            intakeFlap.off();
-            spindexer.setIntakeIndex(intakeIndex);
-            threeShotActive = false;
-            rightPos = false;
-            return true;
+            case 1: // kick phase
+                kickAndClearIndex(firstSlot);
+                if (t >= KICK_DELAY) {
+                    volleyStep = 2;
+                    volleyStepTimer.reset();
+                }
+                break;
+
+            case 2: // normal phase
+                kickerServo.normal();
+                if (t >= NORMAL_DELAY) {
+                    volleyStep = 3;
+                    volleyStepTimer.reset();
+                }
+                break;
+
+            // ----- Ball 2 -----
+            case 3: // setShootIndex phase
+                setShootIndexOnce(secondSlot);
+                if (t >= SHOOT_DELAY) {
+                    volleyStep = 4;
+                    volleyStepTimer.reset();
+                }
+                break;
+
+            case 4: // kick phase
+                kickAndClearIndex(secondSlot);
+                if (t >= KICK_DELAY) {
+                    volleyStep = 5;
+                    volleyStepTimer.reset();
+                }
+                break;
+
+            case 5: // normal phase
+                kickerServo.normal();
+                if (t >= NORMAL_DELAY) {
+                    volleyStep = 6;
+                    volleyStepTimer.reset();
+                }
+                break;
+
+            // ----- Ball 3 -----
+            case 6: // setShootIndex phase
+                setShootIndexOnce(thirdSlot);
+                if (t >= SHOOT_DELAY) {
+                    volleyStep = 7;
+                    volleyStepTimer.reset();
+                }
+                break;
+
+            case 7: // kick phase
+                kickAndClearIndex(thirdSlot);
+                if (t >= KICK_DELAY) {
+                    volleyStep = 8;
+                    volleyStepTimer.reset();
+                }
+                break;
+
+            case 8: // normal phase
+                kickerServo.normal();
+                if (t >= NORMAL_DELAY) {
+                    volleyStep = 9;
+                    volleyStepTimer.reset();
+                }
+                break;
+
+            // ----- Done -----
+            case 9:
+                intakeIndex = 0;
+                intake.spinIntake();
+                intakeFlap.off();
+                spindexer.setIntakeIndex(intakeIndex);
+                threeShotActive = false;
+                rightPos = false;
+                return true;
         }
 
         return false;
     }
+
 
 
 
@@ -306,14 +470,22 @@ public class BlueAuto extends LinearOpMode {
                 setPathState(1);
                 break;
 
-            case 1: // preset volley
+            case 1: // preset volley (shoot position 1)
                 if (!follower.isBusy()) {
+
+                    // Scan AprilTag while stationary and aiming
+                    scanMotifAtShoot();
+
+                    // 🚨 HARD BLOCK: do NOT shoot until motif is locked
+                    if (!motifLocked && !(runtime.milliseconds() > 2500)) {
+                        return; // stay here, keep scanning
+                    }
+
+                    // Once motif is locked, allow first volley
                     if (!volleyFinishedThisLoop) {
-                        // have not shot yet in this state → start volley 0
                         startThreeShotVolley(0);
                         return;
                     } else {
-                        // volley 0 just finished this loop → move to lane 1
                         spindexAllowed = true;
                         follower.followPath(paths.preparepickup1);
                         setPathState(2);
@@ -329,11 +501,7 @@ public class BlueAuto extends LinearOpMode {
                 break;
 
             case 3:
-                if (!follower.isBusy()) {
-                    intake.stop();
-                    follower.followPath(paths.overflow, 0.7, false);
-                    setPathState(4);
-                }
+                setPathState(4);
                 break;
 
             case 4:
@@ -453,7 +621,7 @@ public class BlueAuto extends LinearOpMode {
                                     new Pose(48.000, 96.000)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(320))
+                    .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(313))
                     .build();
 
             // === preparepickup1 = line2 ===
@@ -466,7 +634,7 @@ public class BlueAuto extends LinearOpMode {
                                     new Pose(45.000, 84.500)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(320), Math.toRadians(180))
+                    .setLinearHeadingInterpolation(Math.toRadians(313), Math.toRadians(180))
                     .build();
 
             // === pickup1 = line3 ===
@@ -475,7 +643,7 @@ public class BlueAuto extends LinearOpMode {
                     .addPath(
                             new BezierLine(
                                     new Pose(45.000, 84.500),
-                                    new Pose(24.000, 84.500)
+                                    new Pose(28.000, 84.500)
                             )
                     )
                     .setConstantHeadingInterpolation(Math.toRadians(180))
@@ -499,11 +667,11 @@ public class BlueAuto extends LinearOpMode {
                     .pathBuilder()
                     .addPath(
                             new BezierLine(
-                                    new Pose(16.000, 73.500),
+                                    new Pose(28.000, 84.500),
                                     new Pose(48.000, 96.000)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(320))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(313))
                     .build();
 
             // === preparepickup2 = Path6 (BezierCurve) ===
@@ -516,7 +684,7 @@ public class BlueAuto extends LinearOpMode {
                                     new Pose(44, 60)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(320), Math.toRadians(180))
+                    .setLinearHeadingInterpolation(Math.toRadians(313), Math.toRadians(180))
                     .build();
 
             // === pickup2 = line7 ===
@@ -525,7 +693,7 @@ public class BlueAuto extends LinearOpMode {
                     .addPath(
                             new BezierLine(
                                     new Pose(44, 60),
-                                    new Pose(24.000, 60)
+                                    new Pose(28.000, 60)
                             )
                     )
                     .setConstantHeadingInterpolation(Math.toRadians(180))
@@ -536,11 +704,11 @@ public class BlueAuto extends LinearOpMode {
                     .pathBuilder()
                     .addPath(
                             new BezierLine(
-                                    new Pose(24.000, 60),
+                                    new Pose(28.000, 60),
                                     new Pose(48.000, 96.000)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(320))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(313))
                     .build();
 
             // === preparepickup3 = Path9 (BezierCurve) ===
@@ -553,7 +721,7 @@ public class BlueAuto extends LinearOpMode {
                                     new Pose(44.000, 40)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(320), Math.toRadians(180))
+                    .setLinearHeadingInterpolation(Math.toRadians(313), Math.toRadians(180))
                     .build();
 
             // === pickup3 = line10 ===
@@ -562,7 +730,7 @@ public class BlueAuto extends LinearOpMode {
                     .addPath(
                             new BezierLine(
                                     new Pose(44.000, 40),
-                                    new Pose(24.000, 40)
+                                    new Pose(28.000, 40)
                             )
                     )
                     .setConstantHeadingInterpolation(Math.toRadians(180))
@@ -573,11 +741,11 @@ public class BlueAuto extends LinearOpMode {
                     .pathBuilder()
                     .addPath(
                             new BezierLine(
-                                    new Pose(24.000, 40),
+                                    new Pose(28.000, 40),
                                     new Pose(48.000, 96.000)
                             )
                     )
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(320))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(313))
                     .build();
 
             // === ending = Path12 ===
@@ -586,10 +754,10 @@ public class BlueAuto extends LinearOpMode {
                     .addPath(
                             new BezierLine(
                                     new Pose(48.000, 96.000),
-                                    new Pose(48.235, 51.403)
+                                    new Pose(48, 70)
                             )
                     )
-                    .setTangentHeadingInterpolation()
+                    .setConstantHeadingInterpolation(Math.toRadians(313))
                     .build();
         }
     }

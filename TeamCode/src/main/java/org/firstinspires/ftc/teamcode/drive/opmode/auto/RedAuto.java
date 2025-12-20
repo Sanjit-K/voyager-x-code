@@ -245,7 +245,7 @@ public class RedAuto extends LinearOpMode {
         // ---------- Basic startup config ----------
         spindexer.setShootIndex(0);
         kickerServo.normal();
-        shooter.setPower(0.8);
+        shooter.setPower(0.82);
         shooter.off();
         intake.stop();
         intakeFlap.off();
@@ -477,7 +477,7 @@ public class RedAuto extends LinearOpMode {
                     scanMotifAtShoot();
 
                     // 🚨 HARD BLOCK: do NOT shoot until motif is locked
-                    if (!motifLocked && !(runtime.milliseconds() > 3000)) {
+                    if (!motifLocked && !(runtime.milliseconds() > 2500)) {
                         return; // stay here, keep scanning
                     }
 
