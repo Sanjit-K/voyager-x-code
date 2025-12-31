@@ -23,8 +23,7 @@ public class SpindexerTeleopTester extends OpMode {
         // Replace these names with the ones in your robot configuration if different
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog");
 
-        // start background polling so getLastMeasuredAngle() is kept up-to-date
-        spindexer.startPolling(20);
+        // we will sample the analog angle on each loop() call (no background thread)
 
         telemetry.addLine("Spindexer TeleOp Tester Initialized")
                 .addData("Note", "Make sure motor & analog names match config");
@@ -46,6 +45,9 @@ public class SpindexerTeleopTester extends OpMode {
         boolean dleft = gamepad1.dpad_left;
         boolean dright = gamepad1.dpad_right;
         boolean leftStickBtn = gamepad1.left_stick_button;
+
+        // sample the calibrated angle each loop (keeps measured value current without threads)
+        spindexer.getCalibratedAngle();
 
         // cycle selected PID param when left stick button pressed
         if (leftStickBtn && !prevLeftStick) {
@@ -138,6 +140,5 @@ public class SpindexerTeleopTester extends OpMode {
     @Override
     public void stop() {
         spindexer.stop();
-        spindexer.stopPolling();
     }
 }

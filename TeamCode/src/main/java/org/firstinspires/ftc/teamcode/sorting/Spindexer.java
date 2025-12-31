@@ -33,7 +33,7 @@ public class Spindexer {
     private static final double ANALOG_MAX_VOLTAGE = 3.3; // per user's description
 
     // Calibration parameters
-    private double angleOffsetDegrees = 29.0; // add to raw angle after optional reversal
+    private double angleOffsetDegrees = 331.0; // add to raw angle after optional reversal
     private boolean angleReversed = false;
 
     // Telemetry (last computed terms)
@@ -41,12 +41,7 @@ public class Spindexer {
     private double lastI = 0.0;
     private double lastD = 0.0;
     private double lastOutput = 0.0;
-    private volatile double lastMeasuredAngle = 0.0;
-
-    // Polling thread (optional). Use startPolling()/stopPolling() to enable continuous background sampling.
-    private Thread pollThread = null;
-    private volatile boolean polling = false;
-    private long pollPeriodMs = 20; // default poll period
+    private double lastMeasuredAngle = 0.0;
 
     /**
      * Constructor using motor name and optional analog input name (pass null or empty if none).
@@ -64,12 +59,7 @@ public class Spindexer {
                 this.analogEncoder = null; // analog not present
             }
         }
-        // If an analog encoder is provided, start background polling by default to keep
-        // lastMeasuredAngle up-to-date without requiring explicit calls.
-        if (this.analogEncoder != null) {
-            // start with the default pollPeriodMs
-            startPolling(this.pollPeriodMs);
-        }
+        // no automatic polling - sampling will occur when getCalibratedAngle() or update() is called
     }
 
     // ---------------- analog angle helpers / calibration ----------------
@@ -218,46 +208,6 @@ public class Spindexer {
     public void setMaxTimeSeconds(double secs) { this.maxTimeSeconds = secs; }
     public void setPowerScaling(double p) { POWER = p; }
 
-    // ---------------- polling (continuous sampling) ----------------
-    /**
-     * Start a background thread that continuously samples the calibrated angle and updates
-     * the lastMeasuredAngle at roughly the given period in milliseconds.
-     * Calling startPolling(0) will use the current pollPeriodMs.
-     */
-    public synchronized void startPolling(long periodMs) {
-        if (analogEncoder == null) return;
-        // stop any existing thread
-        stopPolling();
-        if (periodMs > 0) this.pollPeriodMs = periodMs;
-        polling = true;
-        pollThread = new Thread(() -> {
-            while (polling) {
-                try {
-                    // sample and update lastMeasuredAngle via getCalibratedAngle()
-                    getCalibratedAngle();
-                    Thread.sleep(this.pollPeriodMs);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                } catch (Exception ignored) {
-                }
-            }
-        }, "SpindexerPollThread");
-        pollThread.setDaemon(true);
-        pollThread.start();
-    }
-
-    /** Stop background polling thread if running. */
-    public synchronized void stopPolling() {
-        polling = false;
-        if (pollThread != null) {
-            pollThread.interrupt();
-            try { pollThread.join(50); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
-            pollThread = null;
-        }
-    }
-
-    public boolean isPolling() { return polling; }
 
     // ---------------- small helpers ----------------
     private double normalizeAngleDegrees(double a) {
