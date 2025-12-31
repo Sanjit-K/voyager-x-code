@@ -11,10 +11,10 @@ public class Spindexer {
 
     // --- PIDF Coefficients ---
     // Start with these. If it oscillates, lower Kp. If it stops short, raise kStatic.
-    public static double Kp = 0.008;
-    public static double Ki = 0.000;
-    public static double Kd = 0.0005;
-    public static double kStatic = 0.04; // Minimum power to overcome friction
+    public static double Kp = 0.007;
+    public static double Ki = 0.001;
+    public static double Kd = 0.0006;
+    public static double kStatic = 0.055; // Minimum power to overcome friction
 
     // PID state
     private double integralSum = 0.0;
@@ -26,12 +26,12 @@ public class Spindexer {
     private boolean running = false;
 
     // Settings
-    private double toleranceDegrees = 2.0;
-    private double maxTimeSeconds = 2.0;
+    private double toleranceDegrees = 4.0;
+    private double maxTimeSeconds = 0.5;
     private static final double ANALOG_MAX_VOLTAGE = 3.3;
 
     // Calibration
-    private double angleOffsetDegrees = 0.0;
+    private double angleOffsetDegrees = 331.0;
 
     // Telemetry storage
     private double lastError = 0.0;

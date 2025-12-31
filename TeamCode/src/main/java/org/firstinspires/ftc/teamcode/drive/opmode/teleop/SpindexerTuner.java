@@ -14,6 +14,8 @@ public class SpindexerTuner extends OpMode {
     private int selectedParam = 0; // 0=Kp, 1=Ki, 2=Kd, 3=kStatic
     private static final String[] PARAM_NAMES = {"Kp", "Ki", "Kd", "kStatic"};
     private static final double VAL_STEP = 0.001;
+    // left-stick toggle for fine mode (VAL_STEP/10)
+    private boolean fineMode = false;
 
     @Override
     public void init() {
@@ -33,10 +35,14 @@ public class SpindexerTuner extends OpMode {
         if (gamepad1.dpadRightWasPressed()) selectedParam = (selectedParam + 1) % 4;
         if (gamepad1.dpadLeftWasPressed())  selectedParam = (selectedParam - 1 + 4) % 4;
 
-        // Adjust Value
+        // Adjust Value (use fine mode when toggled)
+        if (gamepad1.leftStickButtonWasPressed()) {
+            fineMode = !fineMode;
+        }
+        double step = fineMode ? VAL_STEP / 10.0 : VAL_STEP;
         double change = 0.0;
-        if (gamepad1.dpadUpWasPressed()) change = VAL_STEP;
-        if (gamepad1.dpadDownWasPressed()) change = -VAL_STEP;
+        if (gamepad1.dpadUpWasPressed()) change = step;
+        if (gamepad1.dpadDownWasPressed()) change = -step;
 
         // Apply change if any
         if (change != 0.0) {
@@ -71,6 +77,7 @@ public class SpindexerTuner extends OpMode {
         telemetry.addData("Selected", PARAM_NAMES[selectedParam]);
         telemetry.addData("Value", getCurrentValue(selectedParam));
         telemetry.addData("Step Size", VAL_STEP);
+        telemetry.addData("Fine Mode", fineMode);
         telemetry.addLine("-----------------");
         telemetry.addData("Meas Angle", "%.1f", spindexer.getCalibratedAngle());
         telemetry.addData("Error", "%.2f", spindexer.getLastError());

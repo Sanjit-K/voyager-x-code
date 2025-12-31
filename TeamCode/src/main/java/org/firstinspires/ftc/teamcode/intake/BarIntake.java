@@ -7,7 +7,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 
 public class BarIntake {
     private DcMotorEx motor;
-    private double power = 0.7;
+    private double power = 1;
 
     public BarIntake(HardwareMap hardwareMap, String name, boolean reversed) {
         motor = hardwareMap.get(DcMotorEx.class, name);
