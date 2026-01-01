@@ -19,7 +19,7 @@ public class SpindexerTuner extends OpMode {
 
     @Override
     public void init() {
-        spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog");
+        spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor");
         telemetry.addLine("Ready to Tune.");
         telemetry.addLine("Controls:");
         telemetry.addLine("  DPAD L/R: Select P/I/D/Static");

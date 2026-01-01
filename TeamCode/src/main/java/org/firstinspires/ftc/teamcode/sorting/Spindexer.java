@@ -4,10 +4,12 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.AnalogInput;
 import com.qualcomm.robotcore.util.ElapsedTime;
+import com.qualcomm.robotcore.hardware.DigitalChannel;
 
 public class Spindexer {
     private final DcMotorEx spindexerMotor;
     private AnalogInput analogEncoder;
+    private DigitalChannel distanceSensor;
 
     // --- PIDF Coefficients ---
     // Start with these. If it oscillates, lower Kp. If it stops short, raise kStatic.
@@ -36,20 +38,34 @@ public class Spindexer {
     // Telemetry storage
     private double lastError = 0.0;
 
-    public Spindexer(HardwareMap hardwareMap, String motorName, String analogName) {
+    // Tracking
+    private char[] filled = {'_', '_', '_'};
+    private int intakeIndex = 0;
+
+    // Cooldown for ball detection
+    private final ElapsedTime cooldownTimer = new ElapsedTime();
+    private static final double COOLDOWN_MS = 100.0;
+
+    // Positions (Degrees)
+    // Intake: 0, 120, 240
+    private final double[] INTAKE_ANGLES = {0.0, 120.0, 240.0};
+    // Shoot: 180 (0.5), 300 (0.833), 60 (0.167)
+    private final double[] SHOOT_ANGLES = {180.0, 300.0, 60.0};
+
+    public Spindexer(HardwareMap hardwareMap, String motorName, String analogName, String distanceSensorName) {
         this.spindexerMotor = hardwareMap.get(DcMotorEx.class, motorName);
         this.analogEncoder = hardwareMap.get(AnalogInput.class, analogName);
+        this.distanceSensor = hardwareMap.get(DigitalChannel.class, distanceSensorName);
+        this.distanceSensor.setMode(DigitalChannel.Mode.INPUT);
 
         spindexerMotor.setZeroPowerBehavior(com.qualcomm.robotcore.hardware.DcMotor.ZeroPowerBehavior.BRAKE);
         spindexerMotor.setMode(com.qualcomm.robotcore.hardware.DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         spindexerMotor.setMode(com.qualcomm.robotcore.hardware.DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-
     }
 
     // --- Input Processing ---
 
     public double getAngleFromAnalog() {
-        if (analogEncoder == null) return 0.0;
         double v = analogEncoder.getVoltage();
         // Clamp to prevent weird spikes
         if (v < 0) v = 0;
@@ -63,7 +79,6 @@ public class Spindexer {
     }
 
     public void calibrateSetCurrentAsZero() {
-        if (analogEncoder == null) return;
         double raw = getAngleFromAnalog();
         angleOffsetDegrees = normalizeAngleDegrees(-raw);
     }
@@ -80,11 +95,29 @@ public class Spindexer {
         // Seed the last measured angle so derivative doesn't spike on first frame
         lastMeasuredAngle = getCalibratedAngle();
 
-        if (analogEncoder != null) running = true;
+        running = true;
     }
 
     public boolean update() {
-        if (!running || analogEncoder == null) return false;
+        // Ball detection logic
+        if (distanceSensor.getState() && cooldownTimer.milliseconds() > COOLDOWN_MS) {
+            double currentAngle = getCalibratedAngle();
+            for (int i = 0; i < 3; i++) {
+                if (Math.abs(smallestAngleDifference(currentAngle, INTAKE_ANGLES[i])) < 10.0) {
+                    // Ball detected at slot i
+                    if (filled[i] == '_') {
+                        filled[i] = 'X'; // Mark as filled (unknown color)
+                        // Auto-advance if not full
+                        if (!isFull()) {
+                            advanceIntake();
+                        }
+                        cooldownTimer.reset();
+                    }
+                }
+            }
+        }
+
+        if (!running) return false;
 
         double currentAngle = getCalibratedAngle();
         double error = smallestAngleDifference(referenceAngle, currentAngle);
@@ -150,6 +183,63 @@ public class Spindexer {
     public boolean isBusy() { return running; }
     public double getLastError() { return lastError; }
 
+    // --- Tracking & Positions ---
+
+    public void setIntakeIndex(int index) {
+        intakeIndex = index % 3;
+        if (intakeIndex < 0) intakeIndex += 3;
+        startMoveToAngle(INTAKE_ANGLES[intakeIndex]);
+    }
+
+    public void advanceIntake() {
+        intakeIndex = (intakeIndex + 1) % 3;
+        setIntakeIndex(intakeIndex);
+    }
+
+    public void retreatIntake() {
+        intakeIndex = (intakeIndex + 2) % 3; // equivalent to -1
+        setIntakeIndex(intakeIndex);
+    }
+
+    public void setShootIndex(int index) {
+        index %= 3;
+        if (index < 0) index += 3;
+        startMoveToAngle(SHOOT_ANGLES[index]);
+    }
+
+    public void setColorAtPos(char color, int index) {
+        if (index >= 0 && index < 3) filled[index] = color;
+    }
+
+    public void setColorAtPos(char color) {
+        setColorAtPos(color, intakeIndex);
+    }
+
+    public boolean isFull() {
+        for (char c : filled) {
+            if (c == '_') return false;
+        }
+        return true;
+    }
+
+    public void clearTracking() {
+        filled[0] = '_';
+        filled[1] = '_';
+        filled[2] = '_';
+    }
+
+    public int getIntakeIndex() {
+        return intakeIndex;
+    }
+
+    public double getPosition() {
+        return getCalibratedAngle();
+    }
+
+    public char[] getFilled() {
+        return filled;
+    }
+
     // --- Helpers ---
     private double normalizeAngleDegrees(double a) {
         double res = a % 360.0;
@@ -164,3 +254,4 @@ public class Spindexer {
         return diff;
     }
 }
+
