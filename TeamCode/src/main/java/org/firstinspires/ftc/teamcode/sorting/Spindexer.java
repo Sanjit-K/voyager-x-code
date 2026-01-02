@@ -42,10 +42,6 @@ public class Spindexer {
     private char[] filled = {'_', '_', '_'};
     private int intakeIndex = 0;
 
-    // Cooldown for ball detection
-    private final ElapsedTime cooldownTimer = new ElapsedTime();
-    private static final double COOLDOWN_MS = 100.0;
-
     // Positions (Degrees)
     // Intake: 0, 120, 240
     private final double[] INTAKE_ANGLES = {0.0, 120.0, 240.0};
@@ -100,7 +96,7 @@ public class Spindexer {
 
     public boolean update() {
         // Ball detection logic
-        if (distanceSensor.getState() && cooldownTimer.milliseconds() > COOLDOWN_MS) {
+        if (distanceSensor.getState()) {
             double currentAngle = getCalibratedAngle();
             for (int i = 0; i < 3; i++) {
                 if (Math.abs(smallestAngleDifference(currentAngle, INTAKE_ANGLES[i])) < 10.0) {
@@ -111,7 +107,6 @@ public class Spindexer {
                         if (!isFull()) {
                             advanceIntake();
                         }
-                        cooldownTimer.reset();
                     }
                 }
             }
@@ -254,4 +249,3 @@ public class Spindexer {
         return diff;
     }
 }
-
