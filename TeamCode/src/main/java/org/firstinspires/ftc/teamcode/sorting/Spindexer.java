@@ -93,8 +93,8 @@ public class Spindexer {
 
     public boolean update() {
         // Ball detection logic
-        double currentAngle = getCalibratedAngle();
         if (distanceSensor.getState()) {
+            double currentAngle = getCalibratedAngle();
             for (int i = 0; i < 3; i++) {
                 if (Math.abs(smallestAngleDifference(currentAngle, INTAKE_ANGLES[i])) < 10.0) {
                     // Ball detected at slot i
@@ -111,6 +111,7 @@ public class Spindexer {
 
         if (!running) return false;
 
+        double currentAngle = getCalibratedAngle();
         double error = smallestAngleDifference(referenceAngle, currentAngle);
         double dt = timer.seconds();
         timer.reset();

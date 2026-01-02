@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode.drive.opmode.teleop;
 
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
-import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -19,13 +18,9 @@ public class IntakeTest extends OpMode {
     private Spindexer spindexer;
     private ElapsedTime loopTimer;
     private static final double OFFSET = Math.toRadians(180.0);
-    private LynxModule expansionHub;
 
     @Override
     public void init(){
-        expansionHub = hardwareMap.get(LynxModule.class, "Expansion Hub 2");
-        expansionHub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
-
         follower = Constants.createFollower(hardwareMap);
         barIntake = new BarIntake(hardwareMap, "barIntake", true);
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor");
@@ -42,8 +37,6 @@ public class IntakeTest extends OpMode {
 
     @Override
     public void loop() {
-        expansionHub.clearBulkCache();
-
         double loopMs = loopTimer.milliseconds();
         loopTimer.reset();
 
@@ -85,9 +78,6 @@ public class IntakeTest extends OpMode {
         telemetry.addData("BarIntake Power", String.format(java.util.Locale.US, "%.3f", intakePower));
         telemetry.addData("Intake Mode", intakeMode);
 
-        // Spindexer state telemetry
-        double measured = spindexer.getCalibratedAngle();
-        telemetry.addData("Measured Angle", String.format(java.util.Locale.US, "%.2f", measured));
         telemetry.addData("Intake Index", spindexer.getIntakeIndex());
         char[] filled = spindexer.getFilled();
         telemetry.addData("Filled Slots", "[" + filled[0] + ", " + filled[1] + ", " + filled[2] + "]");
