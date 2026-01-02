@@ -29,14 +29,11 @@ public class Spindexer {
 
     // Settings
     private double toleranceDegrees = 4.0;
-    private double maxTimeSeconds = 0.5;
+    private double maxTimeSeconds = 0.2;
     private static final double ANALOG_MAX_VOLTAGE = 3.3;
 
     // Calibration
     private double angleOffsetDegrees = 331.0;
-
-    // Telemetry storage
-    private double lastError = 0.0;
 
     // Tracking
     private char[] filled = {'_', '_', '_'};
@@ -96,8 +93,8 @@ public class Spindexer {
 
     public boolean update() {
         // Ball detection logic
+        double currentAngle = getCalibratedAngle();
         if (distanceSensor.getState()) {
-            double currentAngle = getCalibratedAngle();
             for (int i = 0; i < 3; i++) {
                 if (Math.abs(smallestAngleDifference(currentAngle, INTAKE_ANGLES[i])) < 10.0) {
                     // Ball detected at slot i
@@ -114,7 +111,6 @@ public class Spindexer {
 
         if (!running) return false;
 
-        double currentAngle = getCalibratedAngle();
         double error = smallestAngleDifference(referenceAngle, currentAngle);
         double dt = timer.seconds();
         timer.reset();
@@ -151,9 +147,6 @@ public class Spindexer {
 
         spindexerMotor.setPower(out);
 
-        // Store for telemetry
-        lastError = error;
-
         // Exit condition
         if (Math.abs(error) <= toleranceDegrees && Math.abs(velocity) < 5.0) {
             spindexerMotor.setPower(0.0);
@@ -176,7 +169,6 @@ public class Spindexer {
     }
 
     public boolean isBusy() { return running; }
-    public double getLastError() { return lastError; }
 
     // --- Tracking & Positions ---
 
@@ -243,9 +235,6 @@ public class Spindexer {
     }
 
     private double smallestAngleDifference(double target, double current) {
-        double diff = target - current;
-        while (diff > 180.0) diff -= 360.0;
-        while (diff <= -180.0) diff += 360.0;
-        return diff;
+        return Math.IEEEremainder(target - current, 360.0);
     }
 }
