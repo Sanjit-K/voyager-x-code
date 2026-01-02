@@ -14,12 +14,11 @@ import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 @TeleOp(name = "Intake Test", group = "Test")
 public class IntakeTest extends OpMode {
     private Follower follower;
-    private Pose startingPose = new Pose(0,0, Math.toRadians(180));
+    private static final Pose startingPose = new Pose(0,0, Math.toRadians(180));
     private BarIntake barIntake;
     private Spindexer spindexer;
     private ElapsedTime loopTimer;
     private static final double OFFSET = Math.toRadians(180.0);
-
     private LynxModule expansionHub;
 
     @Override
@@ -31,6 +30,8 @@ public class IntakeTest extends OpMode {
         barIntake = new BarIntake(hardwareMap, "barIntake", true);
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor");
         loopTimer = new ElapsedTime();
+        spindexer.moveToZero();
+
         follower.setStartingPose(startingPose);
     }
 
@@ -71,6 +72,10 @@ public class IntakeTest extends OpMode {
 
         if (gamepad1.yWasPressed()){
             spindexer.setIntakeIndex(0);
+        }
+
+        if (gamepad1.leftStickButtonWasPressed()){
+            spindexer.clearTracking();
         }
         spindexer.update();
 

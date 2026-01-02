@@ -215,6 +215,17 @@ public class Spindexer {
         filled[2] = '_';
     }
 
+    public void moveToZero() {
+        startMoveToAngle(0.0);
+        while (update()) {
+            try {
+                Thread.sleep(1);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
     public int getIntakeIndex() {
         return intakeIndex;
     }
