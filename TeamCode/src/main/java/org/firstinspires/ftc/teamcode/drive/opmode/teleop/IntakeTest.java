@@ -2,12 +2,15 @@ package org.firstinspires.ftc.teamcode.drive.opmode.teleop;
 
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
+import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.intake.BarIntake;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.shooting.KickerServo;
+import org.firstinspires.ftc.teamcode.shooting.Turret;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 
 @TeleOp(name = "Intake Test", group = "Test")
@@ -16,16 +19,23 @@ public class IntakeTest extends OpMode {
     private static final Pose startingPose = new Pose(0,0, Math.toRadians(180));
     private BarIntake barIntake;
     private Spindexer spindexer;
+    private KickerServo kickerServo;
+    private Turret turret;
     private ElapsedTime loopTimer;
+    private LynxModule expansionHub;
     private static final double OFFSET = Math.toRadians(180.0);
 
     @Override
     public void init(){
+        expansionHub = hardwareMap.get(LynxModule.class, "Expansion Hub 2");
+        expansionHub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
         follower = Constants.createFollower(hardwareMap);
         barIntake = new BarIntake(hardwareMap, "barIntake", true);
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor");
+        kickerServo = new KickerServo(hardwareMap, "kickerServo");
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false,false, true);
         loopTimer = new ElapsedTime();
-        spindexer.moveToZero();
+//        spindexer.moveToZero();
 
         follower.setStartingPose(startingPose);
     }
@@ -37,6 +47,8 @@ public class IntakeTest extends OpMode {
 
     @Override
     public void loop() {
+        expansionHub.clearBulkCache();
+
         double loopMs = loopTimer.milliseconds();
         loopTimer.reset();
 
@@ -70,6 +82,16 @@ public class IntakeTest extends OpMode {
         if (gamepad1.leftStickButtonWasPressed()){
             spindexer.clearTracking();
         }
+
+        if (gamepad1.dpadRightWasPressed()){
+            kickerServo.normal();
+        } else if (gamepad1.dpadLeftWasPressed()){
+            kickerServo.kick();
+        }
+
+        if (gamepad1.dpadUpWasPressed()){
+            turret.transferOn();
+        }
         spindexer.update();
 
         // Telemetry: intake and spindexer status
@@ -78,6 +100,7 @@ public class IntakeTest extends OpMode {
         telemetry.addData("BarIntake Power", String.format(java.util.Locale.US, "%.3f", intakePower));
         telemetry.addData("Intake Mode", intakeMode);
 
+        telemetry.addData("Spindexer Angle (deg)", String.format(java.util.Locale.US, "%.2f", Math.toDegrees(spindexer.getPosition())));
         telemetry.addData("Intake Index", spindexer.getIntakeIndex());
         char[] filled = spindexer.getFilled();
         telemetry.addData("Filled Slots", "[" + filled[0] + ", " + filled[1] + ", " + filled[2] + "]");

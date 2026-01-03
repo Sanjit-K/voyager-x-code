@@ -25,15 +25,12 @@ public class Spindexer {
     private final ElapsedTime runtimeTimer = new ElapsedTime();
 
     private double referenceAngle = 0.0;
-    private boolean running = false;
 
     // Settings
-    private double toleranceDegrees = 4.0;
-    private double maxTimeSeconds = 0.2;
     private static final double ANALOG_MAX_VOLTAGE = 3.3;
 
     // Calibration
-    private double angleOffsetDegrees = 331.0;
+    private double angleOffsetDegrees = 59.0;
 
     // Tracking
     private char[] filled = {'_', '_', '_'};
@@ -87,8 +84,6 @@ public class Spindexer {
 
         // Seed the last measured angle so derivative doesn't spike on first frame
         lastMeasuredAngle = getCalibratedAngle();
-
-        running = true;
     }
 
     public boolean update() {
@@ -109,7 +104,6 @@ public class Spindexer {
             }
         }
 
-        if (!running) return false;
 
         double currentAngle = getCalibratedAngle();
         double error = smallestAngleDifference(referenceAngle, currentAngle);
@@ -136,9 +130,7 @@ public class Spindexer {
 
         // 4. Feedforward (kStatic): Helps overcome friction near target
         double fTerm = 0.0;
-        if (Math.abs(error) > toleranceDegrees) {
-            fTerm = Math.signum(error) * kStatic;
-        }
+        fTerm = Math.signum(error) * kStatic;
 
         double out = pTerm + iTerm + dTerm + fTerm;
 
@@ -148,28 +140,13 @@ public class Spindexer {
 
         spindexerMotor.setPower(out);
 
-        // Exit condition
-        if (Math.abs(error) <= toleranceDegrees && Math.abs(velocity) < 5.0) {
-            spindexerMotor.setPower(0.0);
-            running = false;
-            return false;
-        }
-
-        if (runtimeTimer.seconds() > maxTimeSeconds) {
-            spindexerMotor.setPower(0.0);
-            running = false;
-            return false;
-        }
-
         return true;
     }
 
     public void stop() {
-        running = false;
         spindexerMotor.setPower(0.0);
     }
 
-    public boolean isBusy() { return running; }
 
     // --- Tracking & Positions ---
 

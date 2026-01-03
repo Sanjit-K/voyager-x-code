@@ -80,7 +80,6 @@ public class SpindexerTuner extends OpMode {
         telemetry.addData("Fine Mode", fineMode);
         telemetry.addLine("-----------------");
         telemetry.addData("Meas Angle", "%.1f", spindexer.getCalibratedAngle());
-        telemetry.addData("Busy", spindexer.isBusy());
         telemetry.addLine("-----------------");
         telemetry.addData("Kp", "%.4f", Spindexer.Kp);
         telemetry.addData("Ki", "%.4f", Spindexer.Ki);
