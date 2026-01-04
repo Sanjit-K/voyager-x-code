@@ -4,17 +4,21 @@ import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.hardware.AnalogInput;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorImplEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 public class Turret {
-    private DcMotor shooterMotor;
-    private DcMotor transferMotor;
+    private DcMotorImplEx shooterMotor;
+
+    double COUNTS_PER_WHEEL_REV = 4000; // External through-bore encoder CPR (1:1 gear ratio)
+
+    private DcMotorImplEx transferMotor;
     private CRServo turretServo;
     private AnalogInput turretEncoder;
 
-    private double shooterPower = 0.85;
+    private double shooterRPM = 2000.0;
     private double transferPower = 1;
 
     // PID Coefficients
@@ -34,8 +38,10 @@ public class Turret {
 
     private static final double ANALOG_MAX_VOLTAGE = 3.3;
 
-    public Turret(HardwareMap hardwareMap, String shooterName, String turretName, String turretEncoderName, String transferName, boolean shooterReversed, boolean turretReversed, boolean transferReversed) {
-        shooterMotor = hardwareMap.get(DcMotor.class, shooterName);
+    public Turret(HardwareMap hardwareMap, String shooterName, String turretName, String turretEncoderName,
+            String transferName, boolean shooterReversed, boolean turretReversed, boolean transferReversed) {
+        shooterMotor = hardwareMap.get(DcMotorImplEx.class, shooterName);
+        shooterMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         if (shooterReversed) {
             shooterMotor.setDirection(DcMotorSimple.Direction.REVERSE);
         } else {
@@ -50,7 +56,7 @@ public class Turret {
             turretServo.setDirection(DcMotorSimple.Direction.FORWARD);
         }
 
-        transferMotor = hardwareMap.get(DcMotor.class, transferName);
+        transferMotor = hardwareMap.get(DcMotorImplEx.class, transferName);
         transferMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         if (transferReversed) {
             transferMotor.setDirection(DcMotorSimple.Direction.REVERSE);
@@ -64,7 +70,8 @@ public class Turret {
     }
 
     public void on() {
-        shooterMotor.setPower(shooterPower);
+        double targetTPS = shooterRPM * COUNTS_PER_WHEEL_REV / 60.0;
+        shooterMotor.setVelocity(targetTPS);
     }
 
     public void off() {
@@ -74,17 +81,17 @@ public class Turret {
     public void transferOn() {
         transferMotor.setPower(transferPower);
     }
+
     public void transferOff() {
         transferMotor.setPower(0);
     }
 
-
-    public void setShooterPower(double power) {
-        this.shooterPower = power;
+    public void setShooterRPM(double RPM) {
+        this.shooterRPM = RPM;
     }
 
-    public double getShooterPower() {
-        return shooterPower;
+    public double getShooterRPM() {
+        return shooterRPM;
     }
 
     public void setTurretPower(double power) {
@@ -93,8 +100,10 @@ public class Turret {
 
     private double getRawServoAngle() {
         double v = turretEncoder.getVoltage();
-        if (v < 0) v = 0;
-        if (v > ANALOG_MAX_VOLTAGE) v = ANALOG_MAX_VOLTAGE;
+        if (v < 0)
+            v = 0;
+        if (v > ANALOG_MAX_VOLTAGE)
+            v = ANALOG_MAX_VOLTAGE;
         return (v / ANALOG_MAX_VOLTAGE) * 360.0;
     }
 
@@ -136,7 +145,8 @@ public class Turret {
 
         double dt = timer.seconds();
         timer.reset();
-        if (dt <= 0) dt = 1e-6;
+        if (dt <= 0)
+            dt = 1e-6;
 
         // 1. Integral Zoning
         if (Math.abs(error) < 15.0) {
@@ -162,8 +172,10 @@ public class Turret {
         double power = pTerm + iTerm + dTerm + fTerm;
 
         // Clamp power
-        if (power > 1) power = 1;
-        if (power < -1) power = -1;
+        if (power > 1)
+            power = 1;
+        if (power < -1)
+            power = -1;
 
         turretServo.setPower(power);
         lastError = error;
@@ -171,14 +183,17 @@ public class Turret {
 
     private double normalizeAngle(double angle) {
         angle = angle % 360;
-        if (angle < 0) angle += 360;
+        if (angle < 0)
+            angle += 360;
         return angle;
     }
 
     private double smallestAngleDifference(double target, double current) {
         double diff = target - current;
-        while (diff > 180) diff -= 360;
-        while (diff < -180) diff += 360;
+        while (diff > 180)
+            diff -= 360;
+        while (diff < -180)
+            diff += 360;
         return diff;
     }
 
