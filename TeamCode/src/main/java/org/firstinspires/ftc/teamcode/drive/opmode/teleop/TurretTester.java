@@ -50,7 +50,7 @@ public class TurretTester extends OpMode {
         telemetry.addData("Robot Heading", Math.toDegrees(follower.getPose().getHeading()));
         telemetry.addData("Target X", targetPose.getX());
         telemetry.addData("Target Y", targetPose.getY());
-        telemetry.addData("Shooter Power", turret.getShooterPower());
+        telemetry.addData("Shooter Power", turret.getShooterRPM());
         telemetry.addData("Turret Angle", turret.getTurretAngle());
         telemetry.update();
     }

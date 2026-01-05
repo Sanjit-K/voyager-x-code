@@ -11,6 +11,7 @@ import org.firstinspires.ftc.teamcode.intake.BarIntake;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.firstinspires.ftc.teamcode.shooting.KickerServo;
 import org.firstinspires.ftc.teamcode.shooting.Turret;
+import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 
 @TeleOp(name = "Test TeleOp", group = "TeleOp")
@@ -21,6 +22,7 @@ public class testTeleOp extends OpMode {
     private Spindexer spindexer;
     private KickerServo kickerServo;
     private Turret turret;
+    private ColorSensor colorSensor;
     private ElapsedTime loopTimer;
     private ElapsedTime outtakeTimer;
     private LynxModule expansionHub;
@@ -28,12 +30,12 @@ public class testTeleOp extends OpMode {
 
     // Outtake routine state
     private boolean outtakeInProgress = false;
+    private boolean singleOuttakeInProgress = false;
+    private boolean singleAtPosition = false;
     private int outtakeAdvanceCount = 0;
     private double lastAdvanceTime = 0;
-    private static final double OUTTAKE_DELAY_MS = 30;
+    private static final double OUTTAKE_DELAY_MS = 300;
 
-    // RPM control
-    private static final double RPM_STEP = 50.0;
 
     @Override
     public void init() {
@@ -41,13 +43,16 @@ public class testTeleOp extends OpMode {
         expansionHub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
         follower = Constants.createFollower(hardwareMap);
         barIntake = new BarIntake(hardwareMap, "barIntake", true);
-        spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor");
+        colorSensor = new ColorSensor(hardwareMap, "colorSensor");
+        spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor);
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
         turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false, true);
         loopTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
 
         follower.setStartingPose(startingPose);
+
+        turret.on();
     }
 
     @Override
@@ -85,31 +90,37 @@ public class testTeleOp extends OpMode {
             spindexer.retreatIntake();
         }
 
-        // RPM control
-        if (gamepad1.dpadUpWasPressed()) {
-            double newRPM = turret.getShooterRPM() + RPM_STEP;
-            turret.setShooterRPM(newRPM);
-            turret.on(); // Update velocity with new RPM
-        } else if (gamepad1.dpadDownWasPressed()) {
-            double newRPM = Math.max(0, turret.getShooterRPM() - RPM_STEP);
-            turret.setShooterRPM(newRPM);
-            if (newRPM > 0) {
-                turret.on(); // Update velocity with new RPM
-            } else {
-                turret.off(); // Turn off if RPM reaches 0
-            }
+
+        if (gamepad1.xWasPressed()){
+            spindexer.clearTracking();
+            barIntake.spinIntake();
         }
 
         // Outtake routine trigger
-        if (gamepad1.yWasPressed() && !outtakeInProgress) {
+        if (gamepad1.left_trigger > 0.5 && !outtakeInProgress) {
             startOuttakeRoutine();
         }
+        if (gamepad1.right_trigger > 0.5){
+            spindexer.setIntakeIndex(0);
+        }
 
+        if (gamepad1.leftStickButtonWasPressed()){
+            startSingleOuttake('P');
+        }
+        if (gamepad1.rightStickButtonWasPressed()){
+            startSingleOuttake('G');
+        }
         // Handle outtake routine sequence
         if (outtakeInProgress) {
             handleOuttakeRoutine();
         }
+        if (singleOuttakeInProgress){
+            handleSingleOuttake();
+        }
 
+        if (spindexer.isFull()){
+            barIntake.stop();
+        }
         // Update spindexer
         spindexer.update();
 
@@ -120,6 +131,8 @@ public class testTeleOp extends OpMode {
         telemetry.addData("Outtake In Progress", outtakeInProgress);
         telemetry.addData("Outtake Advance Count", outtakeAdvanceCount);
         telemetry.addData("Loop Time (ms)", String.format(java.util.Locale.US, "%.2f", loopMs));
+        char[] filled = spindexer.getFilled();
+        telemetry.addData("Filled Slots", "[" + filled[0] + ", " + filled[1] + ", " + filled[2] + "]");
         telemetry.update();
     }
 
@@ -131,7 +144,6 @@ public class testTeleOp extends OpMode {
 
         // Step 1: Turn on transfer wheel and turret wheel
         turret.transferOn();
-        turret.on();
 
         // Step 2: Set kicker servo to kick
         kickerServo.kick();
@@ -145,7 +157,7 @@ public class testTeleOp extends OpMode {
     private void handleOuttakeRoutine() {
         double currentTime = outtakeTimer.milliseconds();
 
-        // Check if it's time for the next advanceIntake call (30ms after last one)
+        // Check if it's time for the next advanceIntake call
         if (outtakeAdvanceCount < 3) {
             if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS) {
                 spindexer.advanceIntake();
@@ -153,9 +165,50 @@ public class testTeleOp extends OpMode {
                 lastAdvanceTime = currentTime;
             }
         } else {
-            // All 3 advanceIntake calls completed, set kicker back to normal
-            kickerServo.normal();
-            outtakeInProgress = false;
+            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS) {
+                // All 3 advanceIntake calls completed, set kicker back to normal
+                kickerServo.normal();
+                spindexer.clearTracking();
+                barIntake.spinIntake();
+                outtakeInProgress = false;
+            }
+        }
+    }
+
+    private void startSingleOuttake(char color){
+        int index = -1;
+        char[] filled = spindexer.getFilled();
+        for (int i = 0; i < 3; i++){
+            if (filled[i] == color){
+                index = i;
+                break;
+            }
+        }
+        if (index == -1) return;
+        singleOuttakeInProgress = true;
+        singleAtPosition = false;
+
+        turret.transferOn();
+
+        spindexer.setShootIndex(index);
+    }
+
+    private void handleSingleOuttake(){
+        if (!singleAtPosition) {
+            if (spindexer.isAtTarget(5.0)){
+                singleAtPosition = true;
+                outtakeTimer.reset();
+                kickerServo.kick();
+            }
+        } else {
+            if (outtakeTimer.milliseconds() > OUTTAKE_DELAY_MS){
+                kickerServo.normal();
+                spindexer.setColorAtPos('_', spindexer.getShootIndex());
+                singleOuttakeInProgress = false;
+                if (!spindexer.isFull()) {
+                    barIntake.spinIntake();
+                }
+            }
         }
     }
 }

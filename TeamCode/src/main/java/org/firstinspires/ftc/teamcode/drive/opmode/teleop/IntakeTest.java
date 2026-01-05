@@ -35,7 +35,6 @@ public class IntakeTest extends OpMode {
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
         turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false,false, true);
         loopTimer = new ElapsedTime();
-//        spindexer.moveToZero();
 
         follower.setStartingPose(startingPose);
     }
@@ -100,7 +99,7 @@ public class IntakeTest extends OpMode {
         telemetry.addData("BarIntake Power", String.format(java.util.Locale.US, "%.3f", intakePower));
         telemetry.addData("Intake Mode", intakeMode);
 
-        telemetry.addData("Spindexer Angle (deg)", String.format(java.util.Locale.US, "%.2f", Math.toDegrees(spindexer.getPosition())));
+        telemetry.addData("Spindexer Angle (deg)", String.format(java.util.Locale.US, "%.2f", spindexer.getCalibratedAngle()));
         telemetry.addData("Intake Index", spindexer.getIntakeIndex());
         char[] filled = spindexer.getFilled();
         telemetry.addData("Filled Slots", "[" + filled[0] + ", " + filled[1] + ", " + filled[2] + "]");

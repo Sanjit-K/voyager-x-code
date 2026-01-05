@@ -12,13 +12,13 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 public class Turret {
     private DcMotorImplEx shooterMotor;
 
-    double COUNTS_PER_WHEEL_REV = 4000; // External through-bore encoder CPR (1:1 gear ratio)
+    double COUNTS_PER_WHEEL_REV = 28; // External through-bore encoder CPR (1:1 gear ratio)
 
     private DcMotorImplEx transferMotor;
     private CRServo turretServo;
     private AnalogInput turretEncoder;
 
-    private double shooterRPM = 2000.0;
+    private double shooterRPM = 2500.0;
     private double transferPower = 1;
 
     // PID Coefficients
@@ -91,7 +91,7 @@ public class Turret {
     }
 
     public double getShooterRPM() {
-        return shooterRPM;
+        return shooterMotor.getVelocity() * 60 / COUNTS_PER_WHEEL_REV;
     }
 
     public void setTurretPower(double power) {

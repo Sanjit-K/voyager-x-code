@@ -12,12 +12,12 @@ public class Spindexer {
     private DigitalChannel distanceSensor;
 
     // --- PIDF Coefficients ---
-    // Start with these. If it oscillates, lower Kp. If it stops short, raise
-    // kStatic.
-    public static double Kp = 0.009;
+    // Start with these. If it oscillates, lower Kp. If it stops short, raise kStatic.
+    public static double Kp = 0.007;
     public static double Ki = 0.001;
     public static double Kd = 0.0006;
     public static double kStatic = 0.055; // Minimum power to overcome friction
+    public ColorSensor colorSensor;
 
     // PID state
     private double integralSum = 0.0;
@@ -34,21 +34,17 @@ public class Spindexer {
     private double angleOffsetDegrees = 59.0;
 
     // Tracking
-    private char[] filled = { '_', '_', '_' };
+    private char[] filled = {'_', '_', '_'};
     private int intakeIndex = 0;
-
-    // Ball detection state
-    private boolean lastSensorState = false;
-    private double lastDetectionTime = 0.0;
-    private static final double DETECTION_DEBOUNCE_MS = 100.0; // Prevent multiple detections
+    private int shootIndex = 0;
 
     // Positions (Degrees)
     // Intake: 0, 120, 240
-    private final double[] INTAKE_ANGLES = { 0.0, 120.0, 240.0 };
+    public static final double[] INTAKE_ANGLES = {0.0, 120.0, 240.0};
     // Shoot: 180 (0.5), 300 (0.833), 60 (0.167)
-    private final double[] SHOOT_ANGLES = { 180.0, 300.0, 60.0 };
+    public static final double[] SHOOT_ANGLES = {180.0, 300.0, 60.0};
 
-    public Spindexer(HardwareMap hardwareMap, String motorName, String analogName, String distanceSensorName) {
+    public Spindexer(HardwareMap hardwareMap, String motorName, String analogName, String distanceSensorName, ColorSensor colorSensor) {
         this.spindexerMotor = hardwareMap.get(DcMotorEx.class, motorName);
         this.analogEncoder = hardwareMap.get(AnalogInput.class, analogName);
         this.distanceSensor = hardwareMap.get(DigitalChannel.class, distanceSensorName);
@@ -57,10 +53,11 @@ public class Spindexer {
         spindexerMotor.setZeroPowerBehavior(com.qualcomm.robotcore.hardware.DcMotor.ZeroPowerBehavior.BRAKE);
         spindexerMotor.setMode(com.qualcomm.robotcore.hardware.DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         spindexerMotor.setMode(com.qualcomm.robotcore.hardware.DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        this.colorSensor = colorSensor;
+    }
 
-        // Initialize sensor state
-        lastSensorState = distanceSensor.getState();
-        lastDetectionTime = 0.0;
+    public Spindexer(HardwareMap hardwareMap, String motorName, String analogName, String distanceSensorName) {
+        this(hardwareMap, motorName, analogName, distanceSensorName, null);
     }
 
     // --- Input Processing ---
@@ -68,10 +65,8 @@ public class Spindexer {
     public double getAngleFromAnalog() {
         double v = analogEncoder.getVoltage();
         // Clamp to prevent weird spikes
-        if (v < 0)
-            v = 0;
-        if (v > ANALOG_MAX_VOLTAGE)
-            v = ANALOG_MAX_VOLTAGE;
+        if (v < 0) v = 0;
+        if (v > ANALOG_MAX_VOLTAGE) v = ANALOG_MAX_VOLTAGE;
         return (v / ANALOG_MAX_VOLTAGE) * 360.0;
     }
 
@@ -84,6 +79,7 @@ public class Spindexer {
         double raw = getAngleFromAnalog();
         angleOffsetDegrees = normalizeAngleDegrees(-raw);
     }
+
 
     // --- Control Loop ---
 
@@ -98,41 +94,34 @@ public class Spindexer {
     }
 
     public boolean update() {
-        // Ball detection logic with edge detection and debouncing
-        boolean currentSensorState = distanceSensor.getState();
-        double currentTime = runtimeTimer.milliseconds();
-        double currentAngle = getCalibratedAngle();
-
-        // Check if sensor just detected a ball (rising edge) and we're at the current
-        // intake position
-        if (currentSensorState && !lastSensorState) {
-            // Rising edge detected - ball just entered
-            double angleError = Math.abs(smallestAngleDifference(currentAngle, INTAKE_ANGLES[intakeIndex]));
-
-            // Check if we're close enough to the current intake position (increased
-            // tolerance)
-            if (angleError < 20.0 && (currentTime - lastDetectionTime) > DETECTION_DEBOUNCE_MS) {
-                // Ball detected at current intake slot
-                if (filled[intakeIndex] == '_') {
-                    filled[intakeIndex] = 'X'; // Mark as filled (unknown color)
-                    lastDetectionTime = currentTime;
-
-                    // Auto-advance if not full
-                    if (!isFull()) {
-                        advanceIntake();
+        // Ball detection logic
+        if (distanceSensor.getState()) {
+            double currentAngle = getCalibratedAngle();
+            for (int i = 0; i < 3; i++) {
+                if (Math.abs(smallestAngleDifference(currentAngle, INTAKE_ANGLES[i])) < 15.0) {
+                    // Ball detected at slot i
+                    if (filled[i] == 'X'){
+                        filled[i] = colorSensor.detection();
                     }
+
+                    if (filled[i] == '_') {
+                        filled[i] = colorSensor.detection(); // Mark as filled (unknown color)
+                        // Auto-advance if not full
+                        if (!isFull()) {
+                            advanceIntake();
+                        }
+                    }
+                    break;
                 }
             }
         }
 
-        lastSensorState = currentSensorState;
 
-        // PID control
+        double currentAngle = getCalibratedAngle();
         double error = smallestAngleDifference(referenceAngle, currentAngle);
         double dt = timer.seconds();
         timer.reset();
-        if (dt <= 0)
-            dt = 1e-6; // safety
+        if (dt <= 0) dt = 1e-6; // safety
 
         // 1. Integral Zoning: Only integrate if error is small (prevents windup)
         if (Math.abs(error) < 15.0) {
@@ -158,10 +147,8 @@ public class Spindexer {
         double out = pTerm + iTerm + dTerm + fTerm;
 
         // Clamp
-        if (out > 1.0)
-            out = 1.0;
-        if (out < -1.0)
-            out = -1.0;
+        if (out > 1.0) out = 1.0;
+        if (out < -1.0) out = -1.0;
 
         spindexerMotor.setPower(out);
 
@@ -172,12 +159,12 @@ public class Spindexer {
         spindexerMotor.setPower(0.0);
     }
 
+
     // --- Tracking & Positions ---
 
     public void setIntakeIndex(int index) {
         intakeIndex = index % 3;
-        if (intakeIndex < 0)
-            intakeIndex += 3;
+        if (intakeIndex < 0) intakeIndex += 3;
         startMoveToAngle(INTAKE_ANGLES[intakeIndex]);
     }
 
@@ -193,14 +180,13 @@ public class Spindexer {
 
     public void setShootIndex(int index) {
         index %= 3;
-        if (index < 0)
-            index += 3;
+        if (index < 0) index += 3;
+        shootIndex = index;
         startMoveToAngle(SHOOT_ANGLES[index]);
     }
 
     public void setColorAtPos(char color, int index) {
-        if (index >= 0 && index < 3)
-            filled[index] = color;
+        if (index >= 0 && index < 3) filled[index] = color;
     }
 
     public void setColorAtPos(char color) {
@@ -209,8 +195,7 @@ public class Spindexer {
 
     public boolean isFull() {
         for (char c : filled) {
-            if (c == '_')
-                return false;
+            if (c == '_') return false;
         }
         return true;
     }
@@ -221,34 +206,26 @@ public class Spindexer {
         filled[2] = '_';
     }
 
-    public void moveToZero() {
-        startMoveToAngle(0.0);
-        while (update()) {
-            try {
-                Thread.sleep(1);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
-    }
-
     public int getIntakeIndex() {
         return intakeIndex;
     }
 
-    public double getPosition() {
-        return getCalibratedAngle();
+    public int getShootIndex() {
+        return shootIndex;
     }
 
     public char[] getFilled() {
         return filled;
     }
 
+    public boolean isAtTarget(double tolerance) {
+        return Math.abs(smallestAngleDifference(referenceAngle, getCalibratedAngle())) < tolerance;
+    }
+
     // --- Helpers ---
     private double normalizeAngleDegrees(double a) {
         double res = a % 360.0;
-        if (res < 0)
-            res += 360.0;
+        if (res < 0) res += 360.0;
         return res;
     }
 

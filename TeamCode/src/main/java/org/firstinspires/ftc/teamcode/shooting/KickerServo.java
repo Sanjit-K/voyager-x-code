@@ -7,7 +7,7 @@ public class KickerServo {
     private Servo servo;
 
     // Position constants
-    private static final double NORMAL_POSITION = 0.5;
+    private static final double NORMAL_POSITION = 0.52;
     private static final double KICK_POSITION = 0.39;
 
     public KickerServo(HardwareMap hardwareMap, String name) {
