@@ -34,7 +34,7 @@ public class testTeleOp extends OpMode {
     private boolean singleAtPosition = false;
     private int outtakeAdvanceCount = 0;
     private double lastAdvanceTime = 0;
-    private static final double OUTTAKE_DELAY_MS = 300;
+    private static final double OUTTAKE_DELAY_MS = 500;
 
 
     @Override
@@ -98,10 +98,12 @@ public class testTeleOp extends OpMode {
 
         // Outtake routine trigger
         if (gamepad1.left_trigger > 0.5 && !outtakeInProgress) {
+            turret.on();
             startOuttakeRoutine();
         }
-        if (gamepad1.right_trigger > 0.5){
-            spindexer.setIntakeIndex(0);
+        if (gamepad1.right_trigger > 0.5 && !outtakeInProgress) {
+            turret.onFar();
+            startOuttakeRoutine();
         }
 
         if (gamepad1.leftStickButtonWasPressed()){
@@ -123,6 +125,9 @@ public class testTeleOp extends OpMode {
         }
         // Update spindexer
         spindexer.update();
+
+        // Spindexer diagnostic telemetry (angle, velocity, adaptive tolerance, output, etc.)
+        spindexer.writeTelemetry(telemetry);
 
         // Telemetry
         telemetry.addData("BarIntake Power", String.format(java.util.Locale.US, "%.3f", barIntake.getPower()));

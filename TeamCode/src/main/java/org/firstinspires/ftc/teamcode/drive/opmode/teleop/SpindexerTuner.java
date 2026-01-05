@@ -66,7 +66,6 @@ public class SpindexerTuner extends OpMode {
         if (gamepad1.yWasPressed()) spindexer.startMoveToAngle(180);
 
         // Emergency Stop
-        if (gamepad1.leftBumperWasPressed()) spindexer.stop();
         // Recalibrate Zero
         if (gamepad1.rightBumperWasPressed()) spindexer.calibrateSetCurrentAsZero();
 

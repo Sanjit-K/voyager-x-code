@@ -5,11 +5,20 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.AnalogInput;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 public class Spindexer {
     private final DcMotorEx spindexerMotor;
     private AnalogInput analogEncoder;
     private DigitalChannel distanceSensor;
+
+    // Telemetry / diagnostics
+    private double lastVelocity = 0.0;
+    private double lastAdaptiveTol = 0.0;
+    private double lastCurrentAngle = 0.0;
+    private double lastError = 0.0;
+    private double lastOutput = 0.0;
+    private double lastDt = 0.0;
 
     // --- PIDF Coefficients ---
     // Start with these. If it oscillates, lower Kp. If it stops short, raise kStatic.
@@ -95,17 +104,40 @@ public class Spindexer {
 
     public boolean update() {
         // Ball detection logic
+        double dt = timer.seconds();
+        timer.reset();
+        lastDt = dt;
+
+        // adaptive detection tolerance based on angular velocity
+        // Reasonable defaults (tune these):
+        // BASE_TOL: starting tolerance in degrees when stationary
+        // MIN_TOL: minimum tolerance we allow (to avoid negative/zero)
+        // VELOCITY_FACTOR: how much to reduce tolerance per (deg/s) of angular velocity
+        final double BASE_TOL = 20.0;
+        final double MIN_TOL = 3.0; // don't go below this
+        final double VELOCITY_FACTOR = 0.03; // tuned recommendation: 0.01..0.05
+
+        double currentAngle = getCalibratedAngle();
+        lastCurrentAngle = currentAngle;
+        double velocity = smallestAngleDifference(currentAngle, lastMeasuredAngle) / Math.max(dt, 1e-6);
+        lastVelocity = velocity;
+
         if (distanceSensor.getState()) {
-            double currentAngle = getCalibratedAngle();
+
+            // adaptive tolerance: reduce base tolerance by factor * |velocity|, but clamp
+            double adaptiveTol = Math.max(MIN_TOL, BASE_TOL - VELOCITY_FACTOR * Math.abs(velocity));
+            lastAdaptiveTol = adaptiveTol;
+
             for (int i = 0; i < 3; i++) {
-                if (Math.abs(smallestAngleDifference(currentAngle, INTAKE_ANGLES[i])) < 15.0) {
+                if (Math.abs(smallestAngleDifference(currentAngle, INTAKE_ANGLES[i])) < adaptiveTol) {
                     // Ball detected at slot i
-                    if (filled[i] == 'X'){
+                    if (filled[i] == 'X' && colorSensor != null){
                         filled[i] = colorSensor.detection();
                     }
 
                     if (filled[i] == '_') {
-                        filled[i] = colorSensor.detection(); // Mark as filled (unknown color)
+                        if (colorSensor != null) filled[i] = colorSensor.detection(); // Mark as filled (unknown color)
+                        else filled[i] = 'X';
                         // Auto-advance if not full
                         if (!isFull()) {
                             advanceIntake();
@@ -117,10 +149,9 @@ public class Spindexer {
         }
 
 
-        double currentAngle = getCalibratedAngle();
         double error = smallestAngleDifference(referenceAngle, currentAngle);
-        double dt = timer.seconds();
-        timer.reset();
+        lastError = error;
+
         if (dt <= 0) dt = 1e-6; // safety
 
         // 1. Integral Zoning: Only integrate if error is small (prevents windup)
@@ -132,13 +163,13 @@ public class Spindexer {
 
         // 2. Derivative on Measurement: Calculates velocity directly
         // (Avoids "kick" when changing target)
-        double velocity = smallestAngleDifference(currentAngle, lastMeasuredAngle) / dt;
+        double velocity2 = smallestAngleDifference(currentAngle, lastMeasuredAngle) / dt;
         lastMeasuredAngle = currentAngle;
 
         // 3. Calculate Terms
         double pTerm = Kp * error;
         double iTerm = Ki * integralSum;
-        double dTerm = -Kd * velocity; // Negative because it opposes motion
+        double dTerm = -Kd * velocity2; // Negative because it opposes motion
 
         // 4. Feedforward (kStatic): Helps overcome friction near target
         double fTerm = 0.0;
@@ -150,17 +181,35 @@ public class Spindexer {
         if (out > 1.0) out = 1.0;
         if (out < -1.0) out = -1.0;
 
-        spindexerMotor.setPower(out);
+        lastOutput = out;
+         spindexerMotor.setPower(out);
 
-        return true;
+         return true;
+     }
+
+    // --- Telemetry helpers ---
+    public double getLastVelocity() { return lastVelocity; }
+    public double getLastAdaptiveTol() { return lastAdaptiveTol; }
+    public double getLastCurrentAngle() { return lastCurrentAngle; }
+    public double getLastError() { return lastError; }
+    public double getLastOutput() { return lastOutput; }
+    public double getLastDt() { return lastDt; }
+
+    /**
+     * Write diagnostic telemetry into the provided Telemetry object (OpMode should call this).
+     */
+    public void writeTelemetry(Telemetry telemetry) {
+        if (telemetry == null) return;
+        telemetry.addData("Spindexer Angle", String.format("%.2f", lastCurrentAngle));
+        telemetry.addData("Reference Angle", String.format("%.2f", referenceAngle));
+        telemetry.addData("Error (deg)", String.format("%.2f", lastError));
+        telemetry.addData("Vel (deg/s)", String.format("%.2f", lastVelocity));
+        telemetry.addData("AdaptiveTol", String.format("%.2f", lastAdaptiveTol));
+        telemetry.addData("Output", String.format("%.3f", lastOutput));
+        telemetry.addData("dt (ms)", String.format("%.2f", lastDt * 1000.0));
     }
 
-    public void stop() {
-        spindexerMotor.setPower(0.0);
-    }
-
-
-    // --- Tracking & Positions ---
+// --- Tracking & Positions ---
 
     public void setIntakeIndex(int index) {
         intakeIndex = index % 3;

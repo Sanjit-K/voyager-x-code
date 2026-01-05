@@ -19,6 +19,7 @@ public class Turret {
     private AnalogInput turretEncoder;
 
     private double shooterRPM = 2500.0;
+    private double farRPM = 3000.0;
     private double transferPower = 1;
 
     // PID Coefficients
@@ -71,6 +72,10 @@ public class Turret {
 
     public void on() {
         double targetTPS = shooterRPM * COUNTS_PER_WHEEL_REV / 60.0;
+        shooterMotor.setVelocity(targetTPS);
+    }
+    public void onFar() {
+        double targetTPS = farRPM * COUNTS_PER_WHEEL_REV / 60.0;
         shooterMotor.setVelocity(targetTPS);
     }
 
