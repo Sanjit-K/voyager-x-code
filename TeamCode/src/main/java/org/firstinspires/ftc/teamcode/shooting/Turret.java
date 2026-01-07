@@ -26,18 +26,21 @@ public class Turret {
     public static double Kp = 0.02;
     public static double Ki = 0.0;
     public static double Kd = 0.001;
-    public static double kStatic = 0.0;
-    public static double toleranceDegrees = 1.0;
+    public static double kStatic = 0.1;
+    public static double toleranceDegrees = 2.0;
 
     private double lastError = 0.0;
     private double integralSum = 0.0;
     private ElapsedTime timer = new ElapsedTime();
 
     private double prevServoAngle = 0.0;
-    private int servoRotations = 0;
     private double currentTurretAngle = 0.0;
 
     private static final double ANALOG_MAX_VOLTAGE = 3.3;
+
+    // Configurable offset - Voltage reading when turret is physically at 180 (backward)
+    // Tune this! Example: If sensor reads 2.5V at 180 degrees, set this to 2.5
+    public static double ENCODER_VOLTAGE_AT_180 = 0.152;
 
     public Turret(HardwareMap hardwareMap, String shooterName, String turretName, String turretEncoderName,
             String transferName, boolean shooterReversed, boolean turretReversed, boolean transferReversed) {
@@ -67,7 +70,10 @@ public class Turret {
 
         turretEncoder = hardwareMap.get(AnalogInput.class, turretEncoderName);
         timer.reset();
+
+        // Zero tracking on init - assumes turret is physically aligned to 180 degrees
         prevServoAngle = getRawServoAngle();
+        currentTurretAngle = 180.0;
     }
 
     public void on() {
@@ -112,20 +118,23 @@ public class Turret {
         return (v / ANALOG_MAX_VOLTAGE) * 360.0;
     }
 
+    public double getTurretVoltage() {
+        return turretEncoder.getVoltage();
+    }
+
     public void updatePosition() {
         double curr = getRawServoAngle();
         double delta = curr - prevServoAngle;
 
-        // Handle wrap-around
-        if (delta < -180) {
-            servoRotations++;
-        } else if (delta > 180) {
-            servoRotations--;
-        }
+        // Handle wrap-around (shortest path)
+        if (delta < -180) delta += 360;
+        else if (delta > 180) delta -= 360;
 
         prevServoAngle = curr;
-        double totalServoAngle = (servoRotations * 360.0) + curr;
-        currentTurretAngle = totalServoAngle / 4.0;
+
+        // Accumulate change, applying gear ratio
+        // 4:1 ratio means servo moves 4 deg for turret 1 deg
+        currentTurretAngle += (delta / 4.0);
     }
 
     public double getTurretAngle() {
@@ -205,5 +214,20 @@ public class Turret {
     public void stop() {
         shooterMotor.setPower(0);
         turretServo.setPower(0);
+    }
+
+    public void setTrackedTurretAngle(double angleDegrees) {
+        // Set the tracked turret angle (degrees) and resync encoder baseline so deltas continue smoothly
+        this.currentTurretAngle = angleDegrees;
+        // Reset previous raw reading so next delta is relative to current raw voltage
+        this.prevServoAngle = getRawServoAngle();
+    }
+
+    public double getTrackedTurretAngle() {
+        return this.currentTurretAngle;
+    }
+
+    public double getRawServoDegrees() {
+        return getRawServoAngle();
     }
 }

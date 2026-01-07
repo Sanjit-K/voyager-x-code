@@ -11,14 +11,14 @@ import org.firstinspires.ftc.teamcode.shooting.Turret;
 public class TurretTester extends OpMode {
     private Turret turret;
     private Follower follower;
-    private final Pose targetPose = new Pose(72, 72, 0); // Fixed target
+    private final Pose targetPose = new Pose(144, 144, 0); // Fixed target
 
     @Override
     public void init() {
         follower = Constants.createFollower(hardwareMap);
         // Turret constructor: HardwareMap, shooterName, turretName, turretEncoderName, shooterReversed, turretReversed
-        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false,false, false);
-        follower.setStartingPose(new Pose(0, 0, 0));
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, false);
+        follower.setStartingPose(new Pose(7.5, 7.75, 0));
     }
 
     @Override
@@ -52,6 +52,7 @@ public class TurretTester extends OpMode {
         telemetry.addData("Target Y", targetPose.getY());
         telemetry.addData("Shooter Power", turret.getShooterRPM());
         telemetry.addData("Turret Angle", turret.getTurretAngle());
+        telemetry.addData("Raw Voltage", turret.getTurretVoltage());
         telemetry.update();
     }
 

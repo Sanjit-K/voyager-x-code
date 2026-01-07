@@ -172,8 +172,7 @@ public class Spindexer {
         double dTerm = -Kd * velocity2; // Negative because it opposes motion
 
         // 4. Feedforward (kStatic): Helps overcome friction near target
-        double fTerm = 0.0;
-        fTerm = Math.signum(error) * kStatic;
+        double fTerm = Math.signum(error) * kStatic;
 
         double out = pTerm + iTerm + dTerm + fTerm;
 
@@ -195,19 +194,6 @@ public class Spindexer {
     public double getLastOutput() { return lastOutput; }
     public double getLastDt() { return lastDt; }
 
-    /**
-     * Write diagnostic telemetry into the provided Telemetry object (OpMode should call this).
-     */
-    public void writeTelemetry(Telemetry telemetry) {
-        if (telemetry == null) return;
-        telemetry.addData("Spindexer Angle", String.format("%.2f", lastCurrentAngle));
-        telemetry.addData("Reference Angle", String.format("%.2f", referenceAngle));
-        telemetry.addData("Error (deg)", String.format("%.2f", lastError));
-        telemetry.addData("Vel (deg/s)", String.format("%.2f", lastVelocity));
-        telemetry.addData("AdaptiveTol", String.format("%.2f", lastAdaptiveTol));
-        telemetry.addData("Output", String.format("%.3f", lastOutput));
-        telemetry.addData("dt (ms)", String.format("%.2f", lastDt * 1000.0));
-    }
 
 // --- Tracking & Positions ---
 

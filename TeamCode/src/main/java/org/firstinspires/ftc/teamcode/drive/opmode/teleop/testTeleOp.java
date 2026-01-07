@@ -17,7 +17,7 @@ import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 @TeleOp(name = "Test TeleOp", group = "TeleOp")
 public class testTeleOp extends OpMode {
     private Follower follower;
-    private static final Pose startingPose = new Pose(0, 0, Math.toRadians(180));
+    private static final Pose startingPose = new Pose(7.5, 7.75, Math.toRadians(0));
     private BarIntake barIntake;
     private Spindexer spindexer;
     private KickerServo kickerServo;
@@ -46,18 +46,18 @@ public class testTeleOp extends OpMode {
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor);
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
-        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false, true);
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, true);
         loopTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
 
         follower.setStartingPose(startingPose);
-
-        turret.on();
     }
 
     @Override
     public void start() {
         follower.startTeleopDrive();
+        turret.on();
+        barIntake.spinIntake();
     }
 
     @Override
@@ -101,9 +101,10 @@ public class testTeleOp extends OpMode {
             turret.on();
             startOuttakeRoutine();
         }
-        if (gamepad1.right_trigger > 0.5 && !outtakeInProgress) {
-            turret.onFar();
-            startOuttakeRoutine();
+        if (gamepad1.right_trigger > 0.5) {
+            turret.trackTarget(follower.getPose(), new Pose(0, 144, 0));
+        } else {
+            turret.setTurretPower(0.0);
         }
 
         if (gamepad1.leftStickButtonWasPressed()){
@@ -126,15 +127,14 @@ public class testTeleOp extends OpMode {
         // Update spindexer
         spindexer.update();
 
+
         // Spindexer diagnostic telemetry (angle, velocity, adaptive tolerance, output, etc.)
-        spindexer.writeTelemetry(telemetry);
 
         // Telemetry
-        telemetry.addData("BarIntake Power", String.format(java.util.Locale.US, "%.3f", barIntake.getPower()));
         telemetry.addData("Spindexer Index", spindexer.getIntakeIndex());
+        telemetry.addData("Adaptive Tolerance", String.format(java.util.Locale.US, "%.2f", spindexer.getLastAdaptiveTol()));
         telemetry.addData("Turret RPM", String.format(java.util.Locale.US, "%.1f", turret.getShooterRPM()));
         telemetry.addData("Outtake In Progress", outtakeInProgress);
-        telemetry.addData("Outtake Advance Count", outtakeAdvanceCount);
         telemetry.addData("Loop Time (ms)", String.format(java.util.Locale.US, "%.2f", loopMs));
         char[] filled = spindexer.getFilled();
         telemetry.addData("Filled Slots", "[" + filled[0] + ", " + filled[1] + ", " + filled[2] + "]");
