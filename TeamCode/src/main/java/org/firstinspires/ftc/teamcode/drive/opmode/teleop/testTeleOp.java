@@ -30,6 +30,8 @@ public class testTeleOp extends OpMode {
     private ElapsedTime outtakeTimer;
     private LynxModule expansionHub;
     private static final double OFFSET = Math.toRadians(180.0);
+    private final Pose targetPose = new Pose(144, 144, 0); // Fixed target
+
 
     // Outtake routine state
     private boolean outtakeInProgress = false;
@@ -111,7 +113,7 @@ public class testTeleOp extends OpMode {
             LLResult result = limelight.getLatestResult();
             if (result != null && result.isValid()) {
                 double tx = result.getTx();
-                turret.trackLimelight(tx);
+                turret.trackLimelight(tx, follower.getPose(), targetPose);
             }
         } else {
             turret.setTurretPower(0.0);

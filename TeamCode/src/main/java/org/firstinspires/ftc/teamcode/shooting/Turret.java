@@ -22,12 +22,17 @@ public class Turret {
     private double farRPM = 3000.0;
     private double transferPower = 1;
 
-    // PID Coefficients
+    // PID Coefficients for trackTarget
     public static double Kp = 0.02;
     public static double Ki = 0.0;
     public static double Kd = 0.001;
     public static double kStatic = 0.1;
     public static double toleranceDegrees = 2.0;
+
+    // PID Coefficients for goToPosition
+    public static double Kp_goToPosition = 0.01;
+    public static double Ki_goToPosition = 0.0;
+    public static double Kd_goToPosition = 0.001;
 
     private double lastError = 0.0;
     private double integralSum = 0.0;
@@ -219,9 +224,9 @@ public class Turret {
         double derivative = (error - lastError) / dt;
 
         // 3. Calculate Terms
-        double pTerm = Kp * error;
-        double iTerm = Ki * integralSum;
-        double dTerm = Kd * derivative;
+        double pTerm = Kp_goToPosition * error;
+        double iTerm = Ki_goToPosition * integralSum;
+        double dTerm = Kd_goToPosition * derivative;
 
         // 4. Feedforward (kStatic)
         double fTerm = 0.0;
@@ -241,33 +246,16 @@ public class Turret {
         lastError = error;
     }
 
-    public void trackLimelight(double tx) {
+    public double calculateAngleOffset(Pose robotPose, Pose targetPose) {
+        double distance = Math.hypot(targetPose.getX() - robotPose.getX(), targetPose.getY() - robotPose.getY());
+        return Math.toDegrees(Math.atan2(5.0, distance));
+    }
+
+    public void trackLimelight(double tx, Pose robotPose, Pose targetPose) {
         updatePosition();
 
-        double error = -tx; // Assuming tx positive means target is to the right, and we need to move RIGHT to decrease it?
-        // Wait. if tx is +10 degrees (right). We want to turn right.
-        // If positive power turns right (increases angle), then we want positive power.
-        // So kP * error.
-        // If error = tx = 10. kP*10 = positive. Turret turns positive.
-        // If turret turns positive, does it face more right?
-        // In trackTarget: Target at 45 (Left/CCW in math? No, standard math is CCW).
-        // If target is 45 deg CCW. We are at 0. Error +45. Power +.
-        // So positive power moves CCW.
-        // Limelight tx: usually + is Right (CW or CCW?). Standard Limelight: + is Right of center.
-        // Standard Math (Cartesian): Right is -Y? No.
-        // In standard camera frames, +x is right.
-        // If camera is right-handed system...
-        // Let's assume tx aligns with "turn towards target".
-        // If tx is + (Right), and we need to turn Right (usually CW for robot, but CCW in math...).
-        // If +Power => CCW (Left). We want Right. So we need -Power.
-        // So error should have opposite sign of tx?
-        // Let's try error = -tx.
-
-        // Also note: The user says "add this limelight code in #turretlimelight".
-        // I'll stick to error = tx and if it oscillates/runs away they can flip Kp.
-        // Actually, I'll allow `pid` to handle it.
-
-        // I'll use the same PID logic body.
+        double angleOffset = calculateAngleOffset(robotPose, targetPose);
+        double error = -tx + angleOffset;
         double dt = timer.seconds();
         timer.reset();
         if (dt <= 0)
