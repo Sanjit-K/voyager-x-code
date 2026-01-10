@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.drive.opmode.teleop;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.hardware.limelightvision.LLResult;
+import com.qualcomm.hardware.limelightvision.LLResultTypes;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
@@ -16,47 +17,54 @@ import org.firstinspires.ftc.teamcode.shooting.Turret;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 
-@TeleOp(name = "Test TeleOp", group = "TeleOp")
-public class testTeleOp extends OpMode {
+import java.util.List;
+
+@TeleOp(name = "Turret RPM Test", group = "TeleOp")
+public class TurretRPMTeleOp extends OpMode {
+
+    private Limelight3A limelight; //any camera here
     private Follower follower;
     private static final Pose startingPose = new Pose(7.5, 7.75, Math.toRadians(0));
     private BarIntake barIntake;
-    private Limelight3A limelight;
     private Spindexer spindexer;
     private KickerServo kickerServo;
     private Turret turret;
     private ColorSensor colorSensor;
-    private ElapsedTime loopTimer;
-    private ElapsedTime outtakeTimer;
     private LynxModule expansionHub;
-    private static final double OFFSET = Math.toRadians(180.0);
 
+    private ElapsedTime outtakeTimer;
+    private static final double OUTTAKE_DELAY_MS = 500;
+    
     // Outtake routine state
     private boolean outtakeInProgress = false;
-    private boolean singleOuttakeInProgress = false;
-    private boolean singleAtPosition = false;
     private int outtakeAdvanceCount = 0;
     private double lastAdvanceTime = 0;
-    private static final double OUTTAKE_DELAY_MS = 500;
 
+    // RPM Control
+    private double targetRPM = 2500.0;
+
+    private static final double OFFSET = Math.toRadians(180.0);
 
     @Override
     public void init() {
-        expansionHub = hardwareMap.get(LynxModule.class, "Expansion Hub 2");
-        expansionHub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
-        follower = Constants.createFollower(hardwareMap);
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
         limelight.pipelineSwitch(0);
         limelight.start();
+
+        expansionHub = hardwareMap.get(LynxModule.class, "Expansion Hub 2");
+        expansionHub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
+
+        follower = Constants.createFollower(hardwareMap);
         barIntake = new BarIntake(hardwareMap, "barIntake", true);
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor);
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
         turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, true);
-        loopTimer = new ElapsedTime();
+
         outtakeTimer = new ElapsedTime();
 
         follower.setStartingPose(startingPose);
+        turret.setShooterRPM(targetRPM);
     }
 
     @Override
@@ -64,17 +72,16 @@ public class testTeleOp extends OpMode {
         follower.startTeleopDrive();
         turret.on();
         barIntake.spinIntake();
+        limelight.captureSnapshot("start");
     }
 
     @Override
     public void loop() {
+
         expansionHub.clearBulkCache();
-
-        double loopMs = loopTimer.milliseconds();
-        loopTimer.reset();
-
-        // Drive control
         follower.update();
+
+        // Drive Control (Just in case)
         follower.setTeleOpDrive(
                 -gamepad1.left_stick_y,
                 -gamepad1.left_stick_x,
@@ -82,70 +89,82 @@ public class testTeleOp extends OpMode {
                 false,
                 OFFSET);
 
-        // Intake control
+        // RPM Adjustment
+        if (gamepad1.dpadUpWasPressed()) {
+            targetRPM += 50;
+            turret.setShooterRPM(targetRPM);
+            turret.on(); // Update velocity
+        }
+
+        if (gamepad1.dpadDownWasPressed()) {
+            targetRPM -= 50;
+            turret.setShooterRPM(targetRPM);
+            turret.on(); // Update velocity
+        }
+
+        if (gamepad1.dpadRightWasPressed()) {
+            targetRPM += 10;
+            turret.setShooterRPM(targetRPM);
+            turret.on(); // Update velocity
+        }
+
+        if (gamepad1.dpadLeftWasPressed()) {
+            targetRPM -= 10;
+            turret.setShooterRPM(targetRPM);
+            turret.on(); // Update velocity
+        }
+
+
+        // Intake / Spindexer Control
         if (gamepad1.aWasPressed()) {
             barIntake.spinIntake();
         } else if (gamepad1.bWasPressed()) {
             barIntake.spinOuttake();
         }
 
-        // Spindex control
         if (gamepad1.rightBumperWasPressed()) {
             spindexer.advanceIntake();
         } else if (gamepad1.leftBumperWasPressed()) {
             spindexer.retreatIntake();
         }
 
-
         if (gamepad1.xWasPressed()){
             spindexer.clearTracking();
             barIntake.spinIntake();
         }
 
-        // Outtake routine trigger
-        if (gamepad1.left_trigger > 0.5 && !outtakeInProgress) {
-            turret.on();
-            startOuttakeRoutine();
-        }
-        if (gamepad1.right_trigger > 0.5) {
-            LLResult result = limelight.getLatestResult();
-            if (result != null && result.isValid()) {
-                double tx = result.getTx();
-                turret.trackLimelight(tx);
+        LLResult result = limelight.getLatestResult();
+        if (result != null && result.isValid()) {
+            List<LLResultTypes.FiducialResult> fiducials = result.getFiducialResults();
+            if (!fiducials.isEmpty()) {
+                LLResultTypes.FiducialResult fr = fiducials.get(0);
+                org.firstinspires.ftc.robotcore.external.navigation.Position pos = fr.getCameraPoseTargetSpace().getPosition();
+                double distance = Math.sqrt(pos.x * pos.x + pos.z * pos.z);
+                telemetry.addData("Limelight Distance", distance);
             }
-        } else {
-            turret.setTurretPower(0.0);
         }
 
-        if (gamepad1.leftStickButtonWasPressed()){
-            startSingleOuttake('P');
-        }
-        if (gamepad1.rightStickButtonWasPressed()){
-            startSingleOuttake('G');
-        }
-        // Handle outtake routine sequence
-        if (outtakeInProgress) {
-            handleOuttakeRoutine();
-        }
-        if (singleOuttakeInProgress){
-            handleSingleOuttake();
-        }
 
         if (spindexer.isFull()){
             barIntake.stop();
         }
-        // Update spindexer
         spindexer.update();
 
+        // Outtake Routine Trigger
+        if (gamepad1.left_trigger > 0.5 && !outtakeInProgress) {
+            turret.on(); // Ensure shooter is on
+            startOuttakeRoutine();
+        }
 
-        // Spindexer diagnostic telemetry (angle, velocity, adaptive tolerance, output, etc.)
+        // Handle Outtake Routine
+        if (outtakeInProgress) {
+            handleOuttakeRoutine();
+        }
 
         // Telemetry
-        telemetry.addData("Spindexer Index", spindexer.getIntakeIndex());
-        telemetry.addData("Adaptive Tolerance", String.format(java.util.Locale.US, "%.2f", spindexer.getLastAdaptiveTol()));
-        telemetry.addData("Turret RPM", String.format(java.util.Locale.US, "%.1f", turret.getShooterRPM()));
+        telemetry.addData("Target RPM", targetRPM);
+        telemetry.addData("Actual RPM", turret.getShooterRPM());
         telemetry.addData("Outtake In Progress", outtakeInProgress);
-        telemetry.addData("Loop Time (ms)", String.format(java.util.Locale.US, "%.2f", loopMs));
         char[] filled = spindexer.getFilled();
         telemetry.addData("Filled Slots", "[" + filled[0] + ", " + filled[1] + ", " + filled[2] + "]");
         telemetry.update();
@@ -186,43 +205,6 @@ public class testTeleOp extends OpMode {
                 spindexer.clearTracking();
                 barIntake.spinIntake();
                 outtakeInProgress = false;
-            }
-        }
-    }
-
-    private void startSingleOuttake(char color){
-        int index = -1;
-        char[] filled = spindexer.getFilled();
-        for (int i = 0; i < 3; i++){
-            if (filled[i] == color){
-                index = i;
-                break;
-            }
-        }
-        if (index == -1) return;
-        singleOuttakeInProgress = true;
-        singleAtPosition = false;
-
-        turret.transferOn();
-
-        spindexer.setShootIndex(index);
-    }
-
-    private void handleSingleOuttake(){
-        if (!singleAtPosition) {
-            if (spindexer.isAtTarget(5.0)){
-                singleAtPosition = true;
-                outtakeTimer.reset();
-                kickerServo.kick();
-            }
-        } else {
-            if (outtakeTimer.milliseconds() > OUTTAKE_DELAY_MS){
-                kickerServo.normal();
-                spindexer.setColorAtPos('_', spindexer.getShootIndex());
-                singleOuttakeInProgress = false;
-                if (!spindexer.isFull()) {
-                    barIntake.spinIntake();
-                }
             }
         }
     }

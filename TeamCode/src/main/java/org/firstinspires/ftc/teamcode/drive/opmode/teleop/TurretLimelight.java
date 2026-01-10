@@ -27,11 +27,12 @@ public class TurretLimelight extends OpMode {
         limelight.pipelineSwitch(1); // Switch to pipeline number 1
         follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(new Pose()); //set your starting pose
-        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, true);
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false, true);
 
     }
 
     @Override
+
     public void loop() {
         LLResult result = limelight.getLatestResult();
         if (result != null && result.isValid()) {
