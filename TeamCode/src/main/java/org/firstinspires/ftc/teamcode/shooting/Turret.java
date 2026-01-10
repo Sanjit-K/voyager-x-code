@@ -195,6 +195,52 @@ public class Turret {
         lastError = error;
     }
 
+    public void goToPosition(double targetAngleDegrees) {
+        updatePosition();
+
+        double desiredRelativeAngle = normalizeAngle(targetAngleDegrees);
+
+        double currentAngle = getTurretAngle();
+        double error = smallestAngleDifference(desiredRelativeAngle, currentAngle);
+
+        double dt = timer.seconds();
+        timer.reset();
+        if (dt <= 0)
+            dt = 1e-6;
+
+        // 1. Integral Zoning
+        if (Math.abs(error) < 15.0) {
+            integralSum += error * dt;
+        } else {
+            integralSum = 0.0;
+        }
+
+        // 2. Derivative (Standard)
+        double derivative = (error - lastError) / dt;
+
+        // 3. Calculate Terms
+        double pTerm = Kp * error;
+        double iTerm = Ki * integralSum;
+        double dTerm = Kd * derivative;
+
+        // 4. Feedforward (kStatic)
+        double fTerm = 0.0;
+        if (Math.abs(error) > toleranceDegrees) {
+            fTerm = Math.signum(error) * kStatic;
+        }
+
+        double power = pTerm + iTerm + dTerm + fTerm;
+
+        // Clamp power
+        if (power > 1)
+            power = 1;
+        if (power < -1)
+            power = -1;
+
+        turretServo.setPower(power);
+        lastError = error;
+    }
+
     private double normalizeAngle(double angle) {
         angle = angle % 360;
         if (angle < 0)
