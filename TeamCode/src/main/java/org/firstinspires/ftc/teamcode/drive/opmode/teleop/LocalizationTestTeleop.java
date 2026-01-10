@@ -28,32 +28,24 @@ public class LocalizationTestTeleop extends OpMode {
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
         limelight.setPollRateHz(100);
         limelight.start();
-        limelight.pipelineSwitch(1); // Switch to pipeline number 1
+        limelight.pipelineSwitch(0); // Switch to pipeline number 1
         follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(new Pose()); //set your starting pose
+        limelight.captureSnapshot("on");
+        follower.setStartingPose(new Pose(33, 33, 0)); //set your starting pose
     }
 
     @Override
-    public void loop() {
+        public void loop() {
 
         follower.update();
 
         //if you're not using limelight you can follow the same steps: build an offset pose, put your heading offset, and generate a path etc
 
-        if (!following) {
-            follower.followPath(
-                    follower.pathBuilder()
-                            .addPath(new BezierLine(follower.getPose(), TARGET_LOCATION))
-                            .setLinearHeadingInterpolation(follower.getHeading(), TARGET_LOCATION.minus(follower.getPose()).getAsVector().getTheta())
-                            .build()
-            );
-        }
-
         //This uses the aprilTag to relocalize your robot
-        //You can also create a custom AprilTag fusion Localizer for the follower if you want to use this by default for all your autos
         follower.setPose(getRobotPoseFromCamera());
-
-        if (following && !follower.isBusy()) following = false;
+        telemetry.addData("Robot X", follower.getPose().getX());
+        telemetry.addData("Robot Y", follower.getPose().getY());
+        telemetry.addData("Robot Heading", Math.toDegrees(follower.getPose().getHeading()));
     }
 
     private Pose getRobotPoseFromCamera() {
