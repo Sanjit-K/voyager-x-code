@@ -41,6 +41,11 @@ public class testTeleOp extends OpMode {
     private double lastAdvanceTime = 0;
     private static final double OUTTAKE_DELAY_MS = 500;
 
+    private double currentRPM = 2500.0;
+    private static final double HEIGHT_DIFFERENCE = 12.5;
+    // Limelight mounted at 0 degrees (parallel to floor)
+    private static final double MOUNT_ANGLE = 0.0;
+
 
     @Override
     public void init() {
@@ -48,13 +53,13 @@ public class testTeleOp extends OpMode {
         expansionHub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
         follower = Constants.createFollower(hardwareMap);
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
-        limelight.pipelineSwitch(0);
+        limelight.pipelineSwitch(1);
         limelight.start();
         barIntake = new BarIntake(hardwareMap, "barIntake", true);
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor);
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
-        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, true);
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false, true);
         loopTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
 
@@ -113,10 +118,43 @@ public class testTeleOp extends OpMode {
             LLResult result = limelight.getLatestResult();
             if (result != null && result.isValid()) {
                 double tx = result.getTx();
-                turret.trackLimelight(tx, follower.getPose(), targetPose);
+                turret.goToPosition(turret.getTurretAngle() + tx);
             }
         } else {
             turret.setTurretPower(0.0);
+        }
+
+        LLResult result = limelight.getLatestResult();
+        if (result != null && result.isValid()) {
+            double ty = result.getTy();
+            double angleToGoalDegrees = MOUNT_ANGLE + ty;
+            double angleToGoalRadians = Math.toRadians(angleToGoalDegrees);
+
+            // Calculate distance using: d = (h2 - h1) / tan(a + ty)
+            // Handle edge case where angle is near 0
+            if (Math.abs(angleToGoalRadians) > 0.001) {
+                double distance = HEIGHT_DIFFERENCE / Math.tan(angleToGoalRadians);
+
+                // Regression: rpm = 0.001519*x^2 + 6.23011*x + 1876.19
+                // where x is distance in inches
+                double calculatedRPM = 0.001519 * distance * distance
+                        + 6.23011 * distance
+                        + 1856.19;
+
+                // Update RPM
+                currentRPM = calculatedRPM;
+                turret.setShooterRPM(currentRPM);
+                turret.on(); // Update velocity
+
+                telemetry.addData("Limelight ty", ty);
+                telemetry.addData("Calculated Distance (in)", distance);
+                telemetry.addData("Calculated RPM", calculatedRPM);
+            } else {
+                telemetry.addData("Limelight ty", ty);
+                telemetry.addData("Calculated Distance", "Infinity (angle ~0)");
+            }
+        } else {
+            telemetry.addData("Limelight", "No Target");
         }
 
         if (gamepad1.leftStickButtonWasPressed()){

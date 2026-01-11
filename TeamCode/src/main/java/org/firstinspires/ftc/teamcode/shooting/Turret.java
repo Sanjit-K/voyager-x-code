@@ -46,17 +46,24 @@ public class Turret {
     // Configurable offset - Voltage reading when turret is physically at 180 (backward)
     // Tune this! Example: If sensor reads 2.5V at 180 degrees, set this to 2.5
     public static double ENCODER_VOLTAGE_AT_180 = 0.152;
+    private final double kP_Shooter = 51.5;
+    private final double kI_Shooter = 0.0;
+    private final double kD_Shooter = 0.0;
+    private final double kF_Shooter = 13.45;
 
     public Turret(HardwareMap hardwareMap, String shooterName, String turretName, String turretEncoderName,
             String transferName, boolean shooterReversed, boolean turretReversed, boolean transferReversed) {
+
+
         shooterMotor = hardwareMap.get(DcMotorImplEx.class, shooterName);
+        shooterMotor.setVelocityPIDFCoefficients(kP_Shooter, kI_Shooter, kD_Shooter, kF_Shooter);
         shooterMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         if (shooterReversed) {
             shooterMotor.setDirection(DcMotorSimple.Direction.REVERSE);
         } else {
             shooterMotor.setDirection(DcMotorSimple.Direction.FORWARD);
         }
-        shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         turretServo = hardwareMap.get(CRServo.class, turretName);
         if (turretReversed) {
@@ -246,16 +253,11 @@ public class Turret {
         lastError = error;
     }
 
-    public double calculateAngleOffset(Pose robotPose, Pose targetPose) {
-        double distance = Math.hypot(targetPose.getX() - robotPose.getX(), targetPose.getY() - robotPose.getY());
-        return Math.toDegrees(Math.atan2(5.0, distance));
-    }
 
-    public void trackLimelight(double tx, Pose robotPose, Pose targetPose) {
+
+    public void trackLimelight(double tx) {
         updatePosition();
-
-        double angleOffset = calculateAngleOffset(robotPose, targetPose);
-        double error = -tx + angleOffset;
+        double error = -tx;
         double dt = timer.seconds();
         timer.reset();
         if (dt <= 0)
