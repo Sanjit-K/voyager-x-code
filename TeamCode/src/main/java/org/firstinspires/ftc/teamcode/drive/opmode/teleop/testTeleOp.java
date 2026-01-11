@@ -9,6 +9,7 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.firstinspires.ftc.teamcode.drive.opmode.teleop.functions.LockMode;
 import org.firstinspires.ftc.teamcode.intake.BarIntake;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.firstinspires.ftc.teamcode.shooting.KickerServo;
@@ -19,6 +20,8 @@ import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 @TeleOp(name = "Test TeleOp", group = "TeleOp")
 public class testTeleOp extends OpMode {
     private Follower follower;
+    private LockMode lockMode;
+    private boolean isLocked = false;
     private static final Pose startingPose = new Pose(7.5, 7.75, Math.toRadians(0));
     private BarIntake barIntake;
     private Limelight3A limelight;
@@ -52,6 +55,7 @@ public class testTeleOp extends OpMode {
         expansionHub = hardwareMap.get(LynxModule.class, "Expansion Hub 2");
         expansionHub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
         follower = Constants.createFollower(hardwareMap);
+        lockMode = new LockMode(follower);
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
         limelight.pipelineSwitch(1);
         limelight.start();
@@ -82,12 +86,18 @@ public class testTeleOp extends OpMode {
 
         // Drive control
         follower.update();
-        follower.setTeleOpDrive(
-                -gamepad1.left_stick_y,
-                -gamepad1.left_stick_x,
-                -gamepad1.right_stick_x,
-                false,
-                OFFSET);
+
+        if (isLocked) {
+            lockMode.lockPosition();
+        } else {
+            lockMode.unlockPosition();
+            follower.setTeleOpDrive(
+                    -gamepad1.left_stick_y,
+                    -gamepad1.left_stick_x,
+                    -gamepad1.right_stick_x,
+                    false,
+                    OFFSET);
+        }
 
         // Intake control
         if (gamepad1.aWasPressed()) {
@@ -134,21 +144,23 @@ public class testTeleOp extends OpMode {
             // Handle edge case where angle is near 0
             if (Math.abs(angleToGoalRadians) > 0.001) {
                 double distance = HEIGHT_DIFFERENCE / Math.tan(angleToGoalRadians);
-
-                // Regression: rpm = 0.001519*x^2 + 6.23011*x + 1876.19
-                // where x is distance in inches
-                double calculatedRPM = 0.001519 * distance * distance
-                        + 6.23011 * distance
-                        + 1856.19;
-
+                if (distance >= 88) {
+                    // In the no-shoot zone, set a default RPM
+                    currentRPM = 2500.0;
+                } else {
+                    // Regression: rpm = 0.001519*x^2 + 6.23011*x + 1876.19
+                    // where x is distance in inches
+                    currentRPM = 0.001519 * distance * distance
+                                     + 6.23011 * distance
+                                     + 1866.19;
+                }
                 // Update RPM
-                currentRPM = calculatedRPM;
                 turret.setShooterRPM(currentRPM);
                 turret.on(); // Update velocity
 
                 telemetry.addData("Limelight ty", ty);
                 telemetry.addData("Calculated Distance (in)", distance);
-                telemetry.addData("Calculated RPM", calculatedRPM);
+                telemetry.addData("Set RPM", currentRPM);
             } else {
                 telemetry.addData("Limelight ty", ty);
                 telemetry.addData("Calculated Distance", "Infinity (angle ~0)");
@@ -181,6 +193,7 @@ public class testTeleOp extends OpMode {
         // Spindexer diagnostic telemetry (angle, velocity, adaptive tolerance, output, etc.)
 
         // Telemetry
+        telemetry.addData("Lock Mode Active", isLocked);
         telemetry.addData("Spindexer Index", spindexer.getIntakeIndex());
         telemetry.addData("Adaptive Tolerance", String.format(java.util.Locale.US, "%.2f", spindexer.getLastAdaptiveTol()));
         telemetry.addData("Turret RPM", String.format(java.util.Locale.US, "%.1f", turret.getShooterRPM()));
@@ -193,13 +206,17 @@ public class testTeleOp extends OpMode {
 
     private void startOuttakeRoutine() {
         outtakeInProgress = true;
+        isLocked = true;
         outtakeAdvanceCount = 0;
         outtakeTimer.reset();
         lastAdvanceTime = 0;
-
+        
+        
         // Step 1: Turn on transfer wheel and turret wheel
         turret.transferOn();
-
+        
+        // Step 1.5: Turn on lock mode
+        
         // Step 2: Set kicker servo to kick
         kickerServo.kick();
 
@@ -226,6 +243,7 @@ public class testTeleOp extends OpMode {
                 spindexer.clearTracking();
                 barIntake.spinIntake();
                 outtakeInProgress = false;
+                isLocked = false;
             }
         }
     }
