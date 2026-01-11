@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode.drive.opmode.teleop;
 
 import com.pedropathing.follower.Follower;
 import com.pedropathing.ftc.FTCCoordinates;
-import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.PedroCoordinates;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
@@ -20,15 +19,13 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 public class LocalizationTestTeleop extends OpMode {
     private Limelight3A limelight; //any camera here
     private Follower follower;
-    private boolean following = false;
-    private final Pose TARGET_LOCATION = new Pose(72,72, 180); //Put the target location here
 
     @Override
     public void init() {
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
         limelight.setPollRateHz(100);
         limelight.start();
-        limelight.pipelineSwitch(0); // Switch to pipeline number 1
+        limelight.pipelineSwitch(0); // Switch to pipeline number 0
         follower = Constants.createFollower(hardwareMap);
         limelight.captureSnapshot("on");
         follower.setStartingPose(new Pose(33, 33, 0)); //set your starting pose
@@ -49,20 +46,15 @@ public class LocalizationTestTeleop extends OpMode {
     }
 
     private Pose getRobotPoseFromCamera() {
-        //Fill this out to get the robot Pose from the camera's output (apply any filters if you need to using follower.getPose() for fusion)
-        //Pedro Pathing has built-in KalmanFilter and LowPassFilter classes you can use for this
-        // First, tell Limelight which way your robot is facing
         LLResult result = limelight.getLatestResult();
         if (result != null && result.isValid()) {
             Pose3D botpose = result.getBotpose();
             if (botpose != null) {
-                double x = botpose.getPosition().x;
-                double y = botpose.getPosition().y;
-                telemetry.addData("MT1 Location", "(" + x + ", " + y + ")");
+                double x = botpose.getPosition().x * 39.3701;
+                double y = botpose.getPosition().y * 39.3701;
                 return new Pose(x, y, follower.getHeading(), FTCCoordinates.INSTANCE).getAsCoordinateSystem(PedroCoordinates.INSTANCE);
             }
         }
-        return follower.getPose(); //return current pose if no valid camera data
-
+        return follower.getPose();
     }
 }
