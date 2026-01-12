@@ -14,47 +14,67 @@ import com.qualcomm.hardware.limelightvision.Limelight3A;
 
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
-
 @TeleOp
 public class LocalizationTestTeleop extends OpMode {
-    private Limelight3A limelight; //any camera here
+    private Limelight3A limelight;
     private Follower follower;
 
     @Override
     public void init() {
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
-        limelight.setPollRateHz(100);
-        limelight.start();
-        limelight.pipelineSwitch(0); // Switch to pipeline number 0
+
         follower = Constants.createFollower(hardwareMap);
-        limelight.captureSnapshot("on");
-        follower.setStartingPose(new Pose(33, 33, 0)); //set your starting pose
+        follower.setStartingPose(new Pose(33, 33, 0)); // Pedro coords (in)
+
+        limelight.setPollRateHz(100);
+
+        limelight.pipelineSwitch(0);   // make sure pipeline 0 is APRILTAG
+        limelight.start();
     }
 
     @Override
-        public void loop() {
+    public void loop() {
+        Pose camPose = getRobotPoseFromCamera();
+        if (camPose != null) {
+            follower.setPose(camPose);
+        }
 
         follower.update();
 
-        //if you're not using limelight you can follow the same steps: build an offset pose, put your heading offset, and generate a path etc
-
-        //This uses the aprilTag to relocalize your robot
-        follower.setPose(getRobotPoseFromCamera());
+        telemetry.addData("Has Cam Pose", camPose != null);
         telemetry.addData("Robot X", follower.getPose().getX());
         telemetry.addData("Robot Y", follower.getPose().getY());
-        telemetry.addData("Robot Heading", Math.toDegrees(follower.getPose().getHeading()));
+        telemetry.addData("Robot Heading (deg)", Math.toDegrees(follower.getPose().getHeading()));
+        telemetry.update();
     }
 
     private Pose getRobotPoseFromCamera() {
         LLResult result = limelight.getLatestResult();
-        if (result != null && result.isValid()) {
-            Pose3D botpose = result.getBotpose();
-            if (botpose != null) {
-                double x = botpose.getPosition().x * 39.3701;
-                double y = botpose.getPosition().y * 39.3701;
-                return new Pose(x, y, follower.getHeading(), FTCCoordinates.INSTANCE).getAsCoordinateSystem(PedroCoordinates.INSTANCE);
-            }
-        }
-        return follower.getPose();
+        if (result == null || !result.isValid()) return null;
+
+        // Require at least one tag
+        if (result.getFiducialResults() == null || result.getFiducialResults().isEmpty()) return null;
+
+        Pose3D botpose = result.getBotpose();
+        if (botpose == null) return null;
+
+        // Limelight reports meters -> convert to inches
+        double xIn = botpose.getPosition().x * 39.3701;
+        double yIn = botpose.getPosition().y * 39.3701;
+
+        // IMPORTANT: get yaw from Limelight pose, not follower
+        // Depending on SDK version, you may need AngleUnit.DEGREES/RADIANS.
+        // If this line doesn’t compile, tell me your Pose3D methods and I’ll adjust.
+        double headingRad = Math.toRadians(botpose.getOrientation().getYaw());
+
+        Pose ftcPose = new Pose(xIn, yIn, headingRad, FTCCoordinates.INSTANCE);
+
+        // Convert into Pedro coordinate system
+        return ftcPose.getAsCoordinateSystem(PedroCoordinates.INSTANCE);
+    }
+
+    @Override
+    public void stop() {
+        limelight.stop();
     }
 }
