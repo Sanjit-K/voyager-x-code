@@ -25,6 +25,7 @@ public class TurretRPMTeleOp extends OpMode {
     private Limelight3A limelight; //any camera here
     private Follower follower;
     private static final Pose startingPose = new Pose(7.5, 7.75, Math.toRadians(0));
+    private static final Pose targetPose = new Pose(0, 144, 0); // Fixed target
     private BarIntake barIntake;
     private Spindexer spindexer;
     private KickerServo kickerServo;
@@ -133,16 +134,6 @@ public class TurretRPMTeleOp extends OpMode {
             barIntake.spinIntake();
         }
 
-        LLResult result = limelight.getLatestResult();
-        if (result != null && result.isValid()) {
-            List<LLResultTypes.FiducialResult> fiducials = result.getFiducialResults();
-            if (!fiducials.isEmpty()) {
-                LLResultTypes.FiducialResult fr = fiducials.get(0);
-                org.firstinspires.ftc.robotcore.external.navigation.Position pos = fr.getCameraPoseTargetSpace().getPosition();
-                double distance = Math.sqrt(pos.x * pos.x + pos.z * pos.z);
-                telemetry.addData("Limelight Distance", distance);
-            }
-        }
 
 
         if (spindexer.isFull()){
@@ -162,8 +153,13 @@ public class TurretRPMTeleOp extends OpMode {
         }
 
         // Telemetry
+        double distance = Math.sqrt((targetPose.getX() - follower.getPose().getX())
+                                    * (targetPose.getX() - follower.getPose().getX())
+                                    + (targetPose.getY() - follower.getPose().getY())
+                                    * (targetPose.getY() - follower.getPose().getY()));
         telemetry.addData("Target RPM", targetRPM);
         telemetry.addData("Actual RPM", turret.getShooterRPM());
+        telemetry.addData("Distance from Goal (in)", distance);
         telemetry.addData("Outtake In Progress", outtakeInProgress);
         char[] filled = spindexer.getFilled();
         telemetry.addData("Filled Slots", "[" + filled[0] + ", " + filled[1] + ", " + filled[2] + "]");

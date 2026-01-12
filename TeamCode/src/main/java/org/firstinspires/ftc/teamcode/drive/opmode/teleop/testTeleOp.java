@@ -7,6 +7,7 @@ import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.drive.opmode.teleop.functions.LockMode;
@@ -33,7 +34,7 @@ public class testTeleOp extends OpMode {
     private ElapsedTime outtakeTimer;
     private LynxModule expansionHub;
     private static final double OFFSET = Math.toRadians(180.0);
-    private final Pose targetPose = new Pose(144, 144, 0); // Fixed target
+    private final Pose targetPose = new Pose(0, 144, 0); // Fixed target
 
 
     // Outtake routine state
@@ -45,9 +46,6 @@ public class testTeleOp extends OpMode {
     private static final double OUTTAKE_DELAY_MS = 500;
 
     private double currentRPM = 2500.0;
-    private static final double HEIGHT_DIFFERENCE = 12.5;
-    // Limelight mounted at 0 degrees (parallel to floor)
-    private static final double MOUNT_ANGLE = 0.0;
 
 
     @Override
@@ -63,7 +61,7 @@ public class testTeleOp extends OpMode {
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor);
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
-        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false, true);
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, true);
         loopTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
 
@@ -125,49 +123,37 @@ public class testTeleOp extends OpMode {
             startOuttakeRoutine();
         }
         if (gamepad1.right_trigger > 0.5) {
-            LLResult result = limelight.getLatestResult();
-            if (result != null && result.isValid()) {
-                double tx = result.getTx();
-                turret.goToPosition(turret.getTurretAngle() + tx);
-            }
+            turret.trackTarget(follower.getPose(), targetPose);
         } else {
             turret.setTurretPower(0.0);
         }
 
-        LLResult result = limelight.getLatestResult();
-        if (result != null && result.isValid()) {
-            double ty = result.getTy();
-            double angleToGoalDegrees = MOUNT_ANGLE + ty;
-            double angleToGoalRadians = Math.toRadians(angleToGoalDegrees);
 
-            // Calculate distance using: d = (h2 - h1) / tan(a + ty)
-            // Handle edge case where angle is near 0
-            if (Math.abs(angleToGoalRadians) > 0.001) {
-                double distance = HEIGHT_DIFFERENCE / Math.tan(angleToGoalRadians);
-                if (distance >= 88) {
-                    // In the no-shoot zone, set a default RPM
-                    currentRPM = 2500.0;
-                } else {
-                    // Regression: rpm = 0.001519*x^2 + 6.23011*x + 1876.19
-                    // where x is distance in inches
-                    currentRPM = 0.001519 * distance * distance
-                                     + 6.23011 * distance
-                                     + 1866.19;
-                }
-                // Update RPM
-                turret.setShooterRPM(currentRPM);
-                turret.on(); // Update velocity
-
-                telemetry.addData("Limelight ty", ty);
-                telemetry.addData("Calculated Distance (in)", distance);
-                telemetry.addData("Set RPM", currentRPM);
-            } else {
-                telemetry.addData("Limelight ty", ty);
-                telemetry.addData("Calculated Distance", "Infinity (angle ~0)");
-            }
+        double distance = Math.sqrt((targetPose.getX() - follower.getPose().getX())
+                                    * (targetPose.getX() - follower.getPose().getX())
+                                    + (targetPose.getY() - follower.getPose().getY())
+                                    * (targetPose.getY() - follower.getPose().getY()));
+        if (turret.getSetShooterRPM() >= 2800) {
+            // In the no-shoot zone, set a default RPM
+            currentRPM = 2800.0;
         } else {
-            telemetry.addData("Limelight", "No Target");
+            // Regression: rpm = 0.001519*x^2 + 6.23011*x + 1876.19
+            // where x is distance in inches
+            currentRPM = 0.001519 * distance * distance
+                             + 6.23011 * distance
+                             + 1750.0;
         }
+        // Update RPM
+        turret.setShooterRPM(currentRPM);
+        turret.on(); // Update velocity
+
+        if (gamepad1.right_trigger > 0.5 && Math.abs(turret.getSetShooterRPM()-turret.getShooterRPM()) < 20){
+            gamepad1.rumble(100);
+        }
+        else {
+            gamepad1.stopRumble();
+        }
+        telemetry.addData("Calculated Distance (in)", distance);
 
         if (gamepad1.leftStickButtonWasPressed()){
             startSingleOuttake('P');
@@ -196,7 +182,7 @@ public class testTeleOp extends OpMode {
         telemetry.addData("Lock Mode Active", isLocked);
         telemetry.addData("Spindexer Index", spindexer.getIntakeIndex());
         telemetry.addData("Adaptive Tolerance", String.format(java.util.Locale.US, "%.2f", spindexer.getLastAdaptiveTol()));
-        telemetry.addData("Turret RPM", String.format(java.util.Locale.US, "%.1f", turret.getShooterRPM()));
+        telemetry.addData("Turret RPM Error", String.format(java.util.Locale.US, "%.1f", turret.getShooterRPM() - turret.getSetShooterRPM()));
         telemetry.addData("Outtake In Progress", outtakeInProgress);
         telemetry.addData("Loop Time (ms)", String.format(java.util.Locale.US, "%.2f", loopMs));
         char[] filled = spindexer.getFilled();
