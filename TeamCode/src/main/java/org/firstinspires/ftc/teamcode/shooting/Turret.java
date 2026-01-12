@@ -85,7 +85,7 @@ public class Turret {
 
         // Zero tracking on init - assumes turret is physically aligned to 180 degrees
         prevServoAngle = getRawServoAngle();
-        currentTurretAngle = 180.0;
+        currentTurretAngle = 175.0;
     }
 
     public void on() {

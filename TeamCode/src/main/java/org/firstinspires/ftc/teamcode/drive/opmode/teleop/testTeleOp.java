@@ -43,7 +43,7 @@ public class testTeleOp extends OpMode {
     private boolean singleAtPosition = false;
     private int outtakeAdvanceCount = 0;
     private double lastAdvanceTime = 0;
-    private static final double OUTTAKE_DELAY_MS = 500;
+    private static final double OUTTAKE_DELAY_MS = 300;
 
     private double currentRPM = 2500.0;
 
@@ -133,16 +133,11 @@ public class testTeleOp extends OpMode {
                                     * (targetPose.getX() - follower.getPose().getX())
                                     + (targetPose.getY() - follower.getPose().getY())
                                     * (targetPose.getY() - follower.getPose().getY()));
-        if (turret.getSetShooterRPM() >= 2800) {
-            // In the no-shoot zone, set a default RPM
-            currentRPM = 2800.0;
-        } else {
-            // Regression: rpm = 0.001519*x^2 + 6.23011*x + 1876.19
-            // where x is distance in inches
-            currentRPM = 0.001519 * distance * distance
-                             + 6.23011 * distance
-                             + 1750.0;
-        }
+
+        currentRPM = 0.0151257 * distance * distance
+                             + 10.03881 * distance
+                             + 1382.4428;
+        currentRPM = (currentRPM > 2700) ? 2700 : currentRPM;
         // Update RPM
         turret.setShooterRPM(currentRPM);
         turret.on(); // Update velocity
@@ -154,6 +149,7 @@ public class testTeleOp extends OpMode {
             gamepad1.stopRumble();
         }
         telemetry.addData("Calculated Distance (in)", distance);
+        telemetry.addData("Current target RPM:", currentRPM);
 
         if (gamepad1.leftStickButtonWasPressed()){
             startSingleOuttake('P');
