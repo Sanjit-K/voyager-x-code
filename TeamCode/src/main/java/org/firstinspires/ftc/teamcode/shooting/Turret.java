@@ -22,12 +22,17 @@ public class Turret {
     private double farRPM = 3000.0;
     private double transferPower = 1;
 
-    // PID Coefficients
+    // PID Coefficients for trackTarget
     public static double Kp = 0.02;
     public static double Ki = 0.0;
     public static double Kd = 0.001;
     public static double kStatic = 0.1;
     public static double toleranceDegrees = 2.0;
+
+    // PID Coefficients for goToPosition
+    public static double Kp_goToPosition = 0.01;
+    public static double Ki_goToPosition = 0.0;
+    public static double Kd_goToPosition = 0.001;
 
     private double lastError = 0.0;
     private double integralSum = 0.0;
@@ -41,17 +46,24 @@ public class Turret {
     // Configurable offset - Voltage reading when turret is physically at 180 (backward)
     // Tune this! Example: If sensor reads 2.5V at 180 degrees, set this to 2.5
     public static double ENCODER_VOLTAGE_AT_180 = 0.152;
+    private final double kP_Shooter = 60.0;
+    private final double kI_Shooter = 0.0;
+    private final double kD_Shooter = 2.0;
+    private final double kF_Shooter = 18.0;
 
     public Turret(HardwareMap hardwareMap, String shooterName, String turretName, String turretEncoderName,
             String transferName, boolean shooterReversed, boolean turretReversed, boolean transferReversed) {
+
+
         shooterMotor = hardwareMap.get(DcMotorImplEx.class, shooterName);
+        shooterMotor.setVelocityPIDFCoefficients(kP_Shooter, kI_Shooter, kD_Shooter, kF_Shooter);
         shooterMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         if (shooterReversed) {
             shooterMotor.setDirection(DcMotorSimple.Direction.REVERSE);
         } else {
             shooterMotor.setDirection(DcMotorSimple.Direction.FORWARD);
         }
-        shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         turretServo = hardwareMap.get(CRServo.class, turretName);
         if (turretReversed) {
@@ -73,7 +85,7 @@ public class Turret {
 
         // Zero tracking on init - assumes turret is physically aligned to 180 degrees
         prevServoAngle = getRawServoAngle();
-        currentTurretAngle = 180.0;
+        currentTurretAngle = 175.0;
     }
 
     public void on() {
@@ -103,6 +115,10 @@ public class Turret {
 
     public double getShooterRPM() {
         return shooterMotor.getVelocity() * 60 / COUNTS_PER_WHEEL_REV;
+    }
+
+    public double getSetShooterRPM() {
+        return this.shooterRPM;
     }
 
     public void setTurretPower(double power) {
@@ -157,6 +173,95 @@ public class Turret {
         double currentAngle = getTurretAngle();
         double error = smallestAngleDifference(desiredRelativeAngle, currentAngle);
 
+        double dt = timer.seconds();
+        timer.reset();
+        if (dt <= 0)
+            dt = 1e-6;
+
+        // 1. Integral Zoning
+        if (Math.abs(error) < 15.0) {
+            integralSum += error * dt;
+        } else {
+            integralSum = 0.0;
+        }
+
+        // 2. Derivative (Standard)
+        double derivative = (error - lastError) / dt;
+
+        // 3. Calculate Terms
+        double pTerm = Kp * error;
+        double iTerm = Ki * integralSum;
+        double dTerm = Kd * derivative;
+
+        // 4. Feedforward (kStatic)
+        double fTerm = 0.0;
+        if (Math.abs(error) > toleranceDegrees) {
+            fTerm = Math.signum(error) * kStatic;
+        }
+
+        double power = pTerm + iTerm + dTerm + fTerm;
+
+        // Clamp power
+        if (power > 1)
+            power = 1;
+        if (power < -1)
+            power = -1;
+
+        turretServo.setPower(power);
+        lastError = error;
+    }
+
+    public void goToPosition(double targetAngleDegrees) {
+        updatePosition();
+
+        double desiredRelativeAngle = normalizeAngle(targetAngleDegrees);
+
+        double currentAngle = getTurretAngle();
+        double error = smallestAngleDifference(desiredRelativeAngle, currentAngle);
+
+        double dt = timer.seconds();
+        timer.reset();
+        if (dt <= 0)
+            dt = 1e-6;
+
+        // 1. Integral Zoning
+        if (Math.abs(error) < 15.0) {
+            integralSum += error * dt;
+        } else {
+            integralSum = 0.0;
+        }
+
+        // 2. Derivative (Standard)
+        double derivative = (error - lastError) / dt;
+
+        // 3. Calculate Terms
+        double pTerm = Kp_goToPosition * error;
+        double iTerm = Ki_goToPosition * integralSum;
+        double dTerm = Kd_goToPosition * derivative;
+
+        // 4. Feedforward (kStatic)
+        double fTerm = 0.0;
+        if (Math.abs(error) > toleranceDegrees) {
+            fTerm = Math.signum(error) * kStatic;
+        }
+
+        double power = pTerm + iTerm + dTerm + fTerm;
+
+        // Clamp power
+        if (power > 1)
+            power = 1;
+        if (power < -1)
+            power = -1;
+
+        turretServo.setPower(power);
+        lastError = error;
+    }
+
+
+
+    public void trackLimelight(double tx) {
+        updatePosition();
+        double error = -tx;
         double dt = timer.seconds();
         timer.reset();
         if (dt <= 0)
