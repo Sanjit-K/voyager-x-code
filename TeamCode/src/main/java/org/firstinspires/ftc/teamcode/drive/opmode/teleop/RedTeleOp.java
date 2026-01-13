@@ -2,12 +2,10 @@ package org.firstinspires.ftc.teamcode.drive.opmode.teleop;
 
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
-import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.drive.opmode.teleop.functions.LockMode;
@@ -18,8 +16,8 @@ import org.firstinspires.ftc.teamcode.shooting.Turret;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 
-@TeleOp(name = "Test TeleOp", group = "TeleOp")
-public class testTeleOp extends OpMode {
+@TeleOp(name = "Red TeleOp", group = "TeleOp")
+public class RedTeleOp extends OpMode {
     private Follower follower;
     private LockMode lockMode;
     private boolean isLocked = false;
@@ -34,18 +32,16 @@ public class testTeleOp extends OpMode {
     private ElapsedTime outtakeTimer;
     private LynxModule expansionHub;
     private static final double OFFSET = Math.toRadians(180.0);
-    private final Pose targetPose = new Pose(0, 144, 0); // Fixed target
+    private final Pose targetPose = new Pose(144, 144, 0); // Fixed target
 
 
     // Outtake routine state
     private boolean outtakeInProgress = false;
-
-    boolean rpmCap = true;
     private boolean singleOuttakeInProgress = false;
     private boolean singleAtPosition = false;
     private int outtakeAdvanceCount = 0;
     private double lastAdvanceTime = 0;
-    private static double OUTTAKE_DELAY_MS = 300;
+    private static final double OUTTAKE_DELAY_MS = 300;
 
     private double currentRPM = 2500.0;
 
@@ -130,17 +126,6 @@ public class testTeleOp extends OpMode {
             turret.setTurretPower(0.0);
         }
 
-        if(gamepad1.dpadDownWasPressed()){
-            rpmCap = !rpmCap;
-            gamepad1.rumble(200);
-        }
-
-        if(!rpmCap){
-            OUTTAKE_DELAY_MS = 600;
-        }else{
-            OUTTAKE_DELAY_MS = 300;
-        }
-
 
         double distance = Math.sqrt((targetPose.getX() - follower.getPose().getX())
                                     * (targetPose.getX() - follower.getPose().getX())
@@ -150,7 +135,7 @@ public class testTeleOp extends OpMode {
         currentRPM = 0.0151257 * distance * distance
                              + 10.03881 * distance
                              + 1382.4428;
-        currentRPM = (currentRPM > 2700 && rpmCap) ? 2700 : currentRPM;
+        currentRPM = (currentRPM > 2700) ? 2700 : currentRPM;
         // Update RPM
         turret.setShooterRPM(currentRPM);
         turret.on(); // Update velocity
