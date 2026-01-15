@@ -157,12 +157,15 @@ public class Turret {
         return currentTurretAngle;
     }
 
-    public void trackTarget(Pose robotPose, Pose targetPose) {
+    public void trackTarget(Pose robotPose, Pose targetPose, int offset) {
         updatePosition();
 
         double x = targetPose.getX() - robotPose.getX();
         double y = targetPose.getY() - robotPose.getY();
         double targetAngle = Math.atan2(y, x); // Angle in radians
+        targetAngle += Math.toRadians(offset);
+        //targetAngle = Math.max(Math.PI * 3.0/2, targetAngle);
+        //targetAngle = Math.min(0, targetAngle);
 
         double robotHeading = robotPose.getHeading();
         double desiredRelativeAngle = Math.toDegrees(targetAngle - robotHeading); // Degrees

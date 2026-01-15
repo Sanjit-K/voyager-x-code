@@ -43,7 +43,7 @@ public class TurretTester extends OpMode {
         }
 
         // Track target using current robot pose from follower
-        turret.trackTarget(follower.getPose(), targetPose);
+        turret.trackTarget(follower.getPose(), targetPose, 0);
 
         telemetry.addData("Robot X", follower.getPose().getX());
         telemetry.addData("Robot Y", follower.getPose().getY());

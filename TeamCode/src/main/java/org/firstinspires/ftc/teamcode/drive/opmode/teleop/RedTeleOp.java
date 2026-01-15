@@ -121,7 +121,7 @@ public class RedTeleOp extends OpMode {
             startOuttakeRoutine();
         }
         if (gamepad1.right_trigger > 0.5) {
-            turret.trackTarget(follower.getPose(), targetPose);
+            turret.trackTarget(follower.getPose(), targetPose, 0);
         } else {
             turret.setTurretPower(0.0);
         }

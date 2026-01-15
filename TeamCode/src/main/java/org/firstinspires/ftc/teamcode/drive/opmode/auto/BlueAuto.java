@@ -47,10 +47,10 @@ public class BlueAuto extends OpMode {
     private boolean outtakeInProgress = false;
     private int outtakeAdvanceCount = 0;
     private double lastAdvanceTimeMs = 0.0;
-    private double OUTTAKE_DELAY_MS = 600.0;
+    private double OUTTAKE_DELAY_MS = 650.0;
 
     // RPM (ported from TeleOp distance->rpm)
-    private double currentRPM = 2189;
+    private double currentRPM = 2210;
 
     private final ElapsedTime stateTimer = new ElapsedTime();
     private int lastState = -1;
@@ -100,7 +100,7 @@ public class BlueAuto extends OpMode {
 
         // Startup config similar to TeleOp behavior
         kickerServo.normal();
-        turret.on();
+        //turret.on();
         barIntake.spinIntake();
         targetAngle = 308;
 
@@ -126,6 +126,7 @@ public class BlueAuto extends OpMode {
         // Keep turret aimed + RPM updated (so by the time you arrive, you're close)
         //updateShooterRPMFromDistance();
         turret.setShooterRPM(currentRPM);
+        turret.transferOn();
 
 
 
@@ -153,20 +154,7 @@ public class BlueAuto extends OpMode {
         panelsTelemetry.update(telemetry);
     }
 
-    // -------------------- RPM logic (TeleOp -> Auto) --------------------
 
-    private void updateShooterRPMFromDistance() {
-        Pose p = follower.getPose();
-        double dx = targetPose.getX() - p.getX();
-        double dy = targetPose.getY() - p.getY();
-        double distance = Math.sqrt(dx * dx + dy * dy);
-
-        currentRPM = 0.0151257 * distance * distance
-                + 10.03881 * distance
-                + 1382.4428;
-
-        if (currentRPM > 2700) currentRPM = 2700;
-    }
 
     // -------------------- Outtake routine (TeleOp -> Auto) --------------------
 
@@ -178,7 +166,7 @@ public class BlueAuto extends OpMode {
 
         // Turn on transfer + shooter (already on, but safe)
         turret.on();
-        turret.transferOn();
+
 
         // Kick
         kickerServo.kick();
@@ -229,20 +217,20 @@ public class BlueAuto extends OpMode {
 
             case 1: // end of shoot1: do outtake, then go next
                 if (!follower.isBusy()) {
-                    if (stateTimer.milliseconds() < 400) {
+                    if (stateTimer.milliseconds() < 600) {
                         // wait 3 seconds
                         return;
+                    }else{
+                        startOuttakeRoutine();
+                        setState(2);
                     }
-
-                    startOuttakeRoutine();
-                    setState(2);
                 }
                 break;
 
             case 2: // after outtake completes, start pickupPreset1
                 if (!outtakeInProgress) {
-                    follower.followPath(paths.pickupPreset1, 0.7, false);
-                    currentRPM = 2474;
+                    follower.followPath(paths.pickupPreset1);
+                    currentRPM = 2580;
                     targetAngle = 300;
                     setState(3);
                 }
@@ -313,7 +301,7 @@ public class BlueAuto extends OpMode {
 
             case 11:
                 if (!outtakeInProgress) {
-                    currentRPM = 1953.7;
+                    currentRPM = 2000.7;
                     targetAngle = 290;
                     follower.followPath(paths.pickupPreset2, 0.7, false);
                     setState(12);
@@ -337,8 +325,8 @@ public class BlueAuto extends OpMode {
 
             case 14:
                 if (!outtakeInProgress) {
-                    follower.followPath(paths.pickupPreset3, 0.7, false);
-                    currentRPM = 3200;
+                    follower.followPath(paths.pickupPreset3, 0.9, false);
+                    currentRPM = 3240;
                     targetAngle = 285;
                     OUTTAKE_DELAY_MS = 700;
 
@@ -364,9 +352,17 @@ public class BlueAuto extends OpMode {
             case 17:
                 if (!outtakeInProgress) {
                     // Done. Stay here.
-                    setState(17);
+                    setState(18);
                 }
                 break;
+
+            case 18:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.leave);
+                    setState(18);
+                }
+                break;
+
         }
     }
 
@@ -385,6 +381,8 @@ public class BlueAuto extends OpMode {
         public PathChain pickupPreset3;
         public PathChain shoot6;
 
+        public PathChain leave;
+
         public Paths(Follower follower) {
             shoot1 = follower.pathBuilder()
                     .addPath(new BezierLine(
@@ -394,39 +392,41 @@ public class BlueAuto extends OpMode {
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
 
-            pickupPreset1 = follower.pathBuilder()
-                    .addPath(new BezierCurve(
-                            new Pose(46.571, 96.857),
-                            new Pose(57.529, 39.600),
-                            new Pose(0.857, 57.771),
-                            new Pose(32.429, 70.743),
-                            new Pose(18.400, 69.943)
-                    ))
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+            pickupPreset1 = follower.pathBuilder().addPath(
+                            new BezierCurve(
+                                    new Pose(46.571, 96.857),
+                                    new Pose(57.529, 39.600),
+                                    new Pose(0.857, 57.771),
+                                    new Pose(2.086, 63.200),
+                                    new Pose(45.343, 66.543),
+                                    new Pose(12.857, 61.200)
+                            )
+                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(152))
                     .build();
 
-            shoot2 = follower.pathBuilder()
-                    .addPath(new BezierLine(
-                            new Pose(18.400, 69.943),
-                            new Pose(61.029, 73.457)
-                    ))
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+            shoot2 = follower.pathBuilder().addPath(
+                            new BezierLine(
+                                    new Pose(12.857, 61.200),
+                                    new Pose(61.029, 73.457)
+                            )
+                    ).setLinearHeadingInterpolation(Math.toRadians(152), Math.toRadians(180))
+
                     .build();
 
             gateIntake1 = follower.pathBuilder()
                     .addPath(new BezierLine(
                             new Pose(61.029, 73.457),
-                            new Pose(12.657, 64.114)
+                            new Pose(11.553, 63.059)
                     ))
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(152))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(141.6))
                     .build();
 
             shoot3 = follower.pathBuilder()
                     .addPath(new BezierLine(
-                            new Pose(12.657, 64.114),
+                            new Pose(11.553, 63.059),
                             new Pose(61.000, 73.514)
                     ))
-                    .setLinearHeadingInterpolation(Math.toRadians(152), Math.toRadians(180))
+                    .setLinearHeadingInterpolation(Math.toRadians(141.6), Math.toRadians(180))
                     .build();
 
             gateIntake2 = follower.pathBuilder()
@@ -440,23 +440,23 @@ public class BlueAuto extends OpMode {
             shoot4 = follower.pathBuilder()
                     .addPath(new BezierLine(
                             new Pose(12.629, 61.029),
-                            new Pose(60.971, 73.743)
+                            new Pose(60.971, 76)
                     ))
                     .setLinearHeadingInterpolation(Math.toRadians(152), Math.toRadians(180))
                     .build();
 
             pickupPreset2 = follower.pathBuilder()
                     .addPath(new BezierCurve(
-                            new Pose(60.971, 73.743),
-                            new Pose(50.843, 86.300),
-                            new Pose(13.571, 83.657)
+                            new Pose(60.971, 76),
+                            new Pose(55.47, 88.700),
+                            new Pose(13.571, 86.657)
                     ))
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
 
             shoot5 = follower.pathBuilder()
                     .addPath(new BezierLine(
-                            new Pose(13.571, 83.657),
+                            new Pose(13.571, 86.657),
                             new Pose(31.314, 101.686)
                     ))
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
@@ -466,17 +466,26 @@ public class BlueAuto extends OpMode {
                     .addPath(new BezierCurve(
                             new Pose(31.314, 101.686),
                             new Pose(73.057, 31.586),
-                            new Pose(14.629, 35.714)
+                            new Pose(10, 35.714)
                     ))
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
 
             shoot6 = follower.pathBuilder()
                     .addPath(new BezierCurve(
-                            new Pose(14.629, 35.714),
+                            new Pose(10, 35.714),
                             new Pose(59.457, 33.029),
-                            new Pose(61.600, 7.886)
+                            new Pose(61.600, 14.69)
                     ))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    .build();
+
+            leave = follower.pathBuilder().addPath(
+                            new BezierLine(
+                                    new Pose(61.600, 14.69),
+                                    new Pose(48.400, 32.886)
+                            )
+                    ).setTangentHeadingInterpolation()
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
         }

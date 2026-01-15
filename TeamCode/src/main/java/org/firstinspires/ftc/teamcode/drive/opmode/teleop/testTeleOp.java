@@ -2,12 +2,10 @@ package org.firstinspires.ftc.teamcode.drive.opmode.teleop;
 
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
-import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.drive.opmode.teleop.functions.LockMode;
@@ -27,6 +25,8 @@ public class testTeleOp extends OpMode {
     private BarIntake barIntake;
     private Limelight3A limelight;
     private Spindexer spindexer;
+
+    private int offset_turret = 0;
     private KickerServo kickerServo;
     private Turret turret;
     private ColorSensor colorSensor;
@@ -34,7 +34,7 @@ public class testTeleOp extends OpMode {
     private ElapsedTime outtakeTimer;
     private LynxModule expansionHub;
     private static final double OFFSET = Math.toRadians(180.0);
-    private final Pose targetPose = new Pose(0, 144, 0); // Fixed target
+    private Pose targetPose = new Pose(0, 144, 0); // Fixed target
 
 
     // Outtake routine state
@@ -125,7 +125,7 @@ public class testTeleOp extends OpMode {
             startOuttakeRoutine();
         }
         if (gamepad1.right_trigger > 0.5) {
-            turret.trackTarget(follower.getPose(), targetPose);
+            turret.trackTarget(follower.getPose(), targetPose, offset_turret);
         } else {
             turret.setTurretPower(0.0);
         }
@@ -137,8 +137,10 @@ public class testTeleOp extends OpMode {
 
         if(!rpmCap){
             OUTTAKE_DELAY_MS = 600;
+            offset_turret = 0;
         }else{
             OUTTAKE_DELAY_MS = 300;
+            offset_turret = -10;
         }
 
 
