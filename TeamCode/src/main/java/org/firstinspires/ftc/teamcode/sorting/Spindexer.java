@@ -235,6 +235,14 @@ public class Spindexer {
         return true;
     }
 
+    public int getBalls(){
+        int ret = 0;
+        for (char c : filled) {
+            if (c == '_') ret++;
+        }
+        return ret;
+    }
+
     public void clearTracking() {
         filled[0] = '_';
         filled[1] = '_';

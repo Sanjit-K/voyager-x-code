@@ -33,7 +33,7 @@ public class BlueAuto extends OpMode {
     private ColorSensor colorSensor;
     private Spindexer spindexer;
     private KickerServo kickerServo;
-    double targetAngle = 300;
+    double targetAngle = 308;
     private Turret turret;
 
     // Target (match TeleOp)
@@ -126,9 +126,6 @@ public class BlueAuto extends OpMode {
         // Keep turret aimed + RPM updated (so by the time you arrive, you're close)
         //updateShooterRPMFromDistance();
         turret.setShooterRPM(currentRPM);
-        turret.transferOn();
-
-
 
 
         // While in a "shoot" stage, keep tracking target (safe to call always)
@@ -137,9 +134,13 @@ public class BlueAuto extends OpMode {
         turret.on();
         // Spindexer continuous update
         spindexer.update();
-        if (spindexer.isFull()){
+        if (!outtakeInProgress && spindexer.isFull()) {
             barIntake.stop();
         }
+
+//        if(!outtakeInProgress){
+//            turret.transferOff();
+//        }
 
         // Run the autonomous state machine
         autonomousPathUpdate();
@@ -165,7 +166,7 @@ public class BlueAuto extends OpMode {
         lastAdvanceTimeMs = 0.0;
 
         // Turn on transfer + shooter (already on, but safe)
-        turret.on();
+        turret.transferOn();
 
 
         // Kick
@@ -193,6 +194,7 @@ public class BlueAuto extends OpMode {
         if (now - lastAdvanceTimeMs >= OUTTAKE_DELAY_MS) {
             kickerServo.normal();
             spindexer.clearTracking();
+            //turret.transferOff();
             barIntake.spinIntake();
             outtakeInProgress = false;
         }
@@ -217,6 +219,7 @@ public class BlueAuto extends OpMode {
 
             case 1: // end of shoot1: do outtake, then go next
                 if (!follower.isBusy()) {
+                    if (stateTimer.milliseconds() == 0) stateTimer.reset(); // (better: use a dedicated timer)
                     if (stateTimer.milliseconds() < 600) {
                         // wait 3 seconds
                         return;
@@ -231,7 +234,7 @@ public class BlueAuto extends OpMode {
                 if (!outtakeInProgress) {
                     follower.followPath(paths.pickupPreset1);
                     currentRPM = 2580;
-                    targetAngle = 300;
+                    targetAngle = 308;
                     setState(3);
                 }
                 break;
@@ -261,6 +264,7 @@ public class BlueAuto extends OpMode {
             // -------- shoot3 -> outtake -> gateIntake2 --------
             case 6:
                 if (!follower.isBusy()) {
+                    if (stateTimer.milliseconds() == 0) stateTimer.reset(); // (better: use a dedicated timer)
                     if (stateTimer.milliseconds() < 3000) {
                         // wait 3 seconds
                         return;
@@ -301,7 +305,7 @@ public class BlueAuto extends OpMode {
 
             case 11:
                 if (!outtakeInProgress) {
-                    currentRPM = 2000.7;
+                    currentRPM = 2010.7;
                     targetAngle = 290;
                     follower.followPath(paths.pickupPreset2, 0.7, false);
                     setState(12);
@@ -326,8 +330,8 @@ public class BlueAuto extends OpMode {
             case 14:
                 if (!outtakeInProgress) {
                     follower.followPath(paths.pickupPreset3, 0.9, false);
-                    currentRPM = 3240;
-                    targetAngle = 285;
+                    currentRPM = 3250;
+                    targetAngle = 286;
                     OUTTAKE_DELAY_MS = 700;
 
                     setState(15);
@@ -407,7 +411,7 @@ public class BlueAuto extends OpMode {
             shoot2 = follower.pathBuilder().addPath(
                             new BezierLine(
                                     new Pose(12.857, 61.200),
-                                    new Pose(61.029, 73.457)
+                                    new Pose(62.129, 75.457)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(152), Math.toRadians(180))
 
@@ -415,23 +419,23 @@ public class BlueAuto extends OpMode {
 
             gateIntake1 = follower.pathBuilder()
                     .addPath(new BezierLine(
-                            new Pose(61.029, 73.457),
-                            new Pose(11.553, 63.059)
+                            new Pose(62.129, 75.457),
+                            new Pose(11.553, 62.059)
                     ))
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(141.6))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(147.6))
                     .build();
 
             shoot3 = follower.pathBuilder()
                     .addPath(new BezierLine(
-                            new Pose(11.553, 63.059),
-                            new Pose(61.000, 73.514)
+                            new Pose(11.553, 62.059),
+                            new Pose(62.129, 75.457)
                     ))
-                    .setLinearHeadingInterpolation(Math.toRadians(141.6), Math.toRadians(180))
+                    .setLinearHeadingInterpolation(Math.toRadians(147.6), Math.toRadians(180))
                     .build();
 
             gateIntake2 = follower.pathBuilder()
                     .addPath(new BezierLine(
-                            new Pose(61.000, 73.514),
+                            new Pose(62.129, 75.457),
                             new Pose(12.629, 61.029)
                     ))
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(152))

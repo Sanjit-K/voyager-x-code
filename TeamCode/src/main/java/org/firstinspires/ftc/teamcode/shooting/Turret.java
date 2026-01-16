@@ -88,6 +88,43 @@ public class Turret {
         currentTurretAngle = 175.0;
     }
 
+    public Turret(HardwareMap hardwareMap, String shooterName, String turretName, String turretEncoderName,
+                  String transferName, boolean shooterReversed, boolean turretReversed, boolean transferReversed, double initAngle) {
+
+
+        shooterMotor = hardwareMap.get(DcMotorImplEx.class, shooterName);
+        shooterMotor.setVelocityPIDFCoefficients(kP_Shooter, kI_Shooter, kD_Shooter, kF_Shooter);
+        shooterMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        if (shooterReversed) {
+            shooterMotor.setDirection(DcMotorSimple.Direction.REVERSE);
+        } else {
+            shooterMotor.setDirection(DcMotorSimple.Direction.FORWARD);
+        }
+        shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+
+        turretServo = hardwareMap.get(CRServo.class, turretName);
+        if (turretReversed) {
+            turretServo.setDirection(DcMotorSimple.Direction.REVERSE);
+        } else {
+            turretServo.setDirection(DcMotorSimple.Direction.FORWARD);
+        }
+
+        transferMotor = hardwareMap.get(DcMotorImplEx.class, transferName);
+        transferMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        if (transferReversed) {
+            transferMotor.setDirection(DcMotorSimple.Direction.REVERSE);
+        } else {
+            transferMotor.setDirection(DcMotorSimple.Direction.FORWARD);
+        }
+
+        turretEncoder = hardwareMap.get(AnalogInput.class, turretEncoderName);
+        timer.reset();
+
+        // Zero tracking on init - assumes turret is physically aligned to 180 degrees
+        prevServoAngle = getRawServoAngle();
+        currentTurretAngle = initAngle;
+    }
+
     public void on() {
         double targetTPS = shooterRPM * COUNTS_PER_WHEEL_REV / 60.0;
         shooterMotor.setVelocity(targetTPS);

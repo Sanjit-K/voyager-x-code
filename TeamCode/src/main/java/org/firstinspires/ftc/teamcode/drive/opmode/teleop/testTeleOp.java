@@ -135,12 +135,13 @@ public class testTeleOp extends OpMode {
             gamepad1.rumble(200);
         }
 
-        if(!rpmCap){
+        if(!rpmCap){ //if there is NO rpm cap.
             OUTTAKE_DELAY_MS = 600;
-            offset_turret = 0;
-        }else{
+            offset_turret = -7;
+        }else{ //if there IS an RPM cap
             OUTTAKE_DELAY_MS = 300;
-            offset_turret = -10;
+            offset_turret = 0;
+
         }
 
 
