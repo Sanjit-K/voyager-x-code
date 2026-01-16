@@ -238,7 +238,7 @@ public class Spindexer {
     public int getBalls(){
         int ret = 0;
         for (char c : filled) {
-            if (c == '_') ret++;
+            if (c != '_') ret++;
         }
         return ret;
     }

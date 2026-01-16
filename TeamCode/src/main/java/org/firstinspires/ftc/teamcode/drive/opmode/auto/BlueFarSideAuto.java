@@ -19,19 +19,6 @@ import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 import org.firstinspires.ftc.teamcode.shooting.KickerServo;
 import org.firstinspires.ftc.teamcode.shooting.Turret;
 
-/**
- * Rewritten "BlueFarSideAuto" using the same framework/classes as your working OpMode-based BlueAuto:
- * - Extends OpMode (not LinearOpMode)
- * - Uses Turret (RPM + turret angle) instead of Shooter/IntakeFlap/DigitalChannel distance sensor
- * - Uses Spindexer.update() loop model
- * - Uses a TeleOp-ported outtake routine (kicker + spindexer.advanceIntake() timed)
- * - Uses Pedro follower + Paths inner class, including dynamic path building to shoot/park
- *
- * NOTE:
- * - This preserves your original far-side strategy: preset shot, cycle 1, cycle 2, then loop path5<->path6
- *   until full => go shoot, or time>25 => park.
- * - RPM / turret angle values are placeholders; change to your tuned numbers per position.
- */
 @Autonomous(name = "Blue Far Side Auto (OpMode)", group = "Autonomous")
 @Configurable
 public class BlueFarSideAuto extends OpMode {
@@ -148,8 +135,8 @@ public class BlueFarSideAuto extends OpMode {
         // Spin shooter / set RPM & turret angle early
         turret.on();
         turret.transferOn();
-        currentRPM = 3250;
-        targetAngleDeg = 300.0;
+        currentRPM = 3260;
+        targetAngleDeg = 286;
 
         panelsTelemetry.debug("Status", "Initialized");
         panelsTelemetry.update(telemetry);
@@ -268,12 +255,14 @@ public class BlueFarSideAuto extends OpMode {
             // 0: Preset Shot (shoot in place)
             // ------------------------------------------------------------
             case 0:
-                // Make sure shooter is already ready; do an outtake volley immediately
-                // You can tune these “preset” values
-                startOuttakeRoutine();
-                setState(1);
-                break;
+                double curr = turret.getTrackedTurretAngle();
+                double err = Math.abs(Math.IEEEremainder(targetAngleDeg - curr, 360.0));
 
+                if (err < 3.0) { // make sure angle is right
+                    startOuttakeRoutine();
+                    setState(1);
+                }
+                break;
             case 1:
                 // After preset volley completes, go pickup1
                 if (!outtakeInProgress) {
@@ -473,7 +462,7 @@ public class BlueFarSideAuto extends OpMode {
                             new Pose(61.000, 14.000),
                             new Pose(13.555, 4.401),
                             new Pose(23.76, 19.89),
-                            new Pose(6.000, 7.746)
+                            new Pose(10.000, 7.746)
                     ))
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
@@ -481,7 +470,7 @@ public class BlueFarSideAuto extends OpMode {
             shoot2 = follower
                     .pathBuilder()
                     .addPath(new BezierLine(
-                            new Pose(6.000, 7.746),
+                            new Pose(10.000, 7.746),
                             new Pose(61.000, 14.000)
                     ))
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
@@ -491,7 +480,7 @@ public class BlueFarSideAuto extends OpMode {
                     .pathBuilder()
                     .addPath(new BezierLine(
                             new Pose(61.000, 14.000),
-                            new Pose(7.570, 12.851)
+                            new Pose(10.000, 12.851)
                     ))
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
@@ -499,8 +488,8 @@ public class BlueFarSideAuto extends OpMode {
             path55 = follower
                     .pathBuilder()
                     .addPath(new BezierLine(
-                            new Pose(7.570+16, 12.851),
-                            new Pose(7.570, 12.851)
+                            new Pose(9.000+16, 12.851),
+                            new Pose(10.000, 12.851)
                     ))
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
@@ -510,7 +499,7 @@ public class BlueFarSideAuto extends OpMode {
             path6 = follower
                     .pathBuilder()
                     .addPath(new BezierLine(
-                            new Pose(7.570, 12.851),
+                            new Pose(10.000, 12.851),
                             new Pose(60.733, 13.731)
                     ))
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
