@@ -173,12 +173,14 @@ public class BlueTeleOp extends OpMode {
             handleSingleOuttake();
         }
 
+        spindexer.update();
+
+        // Spin out stuff
         if (spindexer.isFull()){
+
             spindexer.setShootIndex(1);
             barIntake.spinOuttake();
         }
-        // Update spindexer
-        spindexer.update();
 
 
         // Spindexer diagnostic telemetry (angle, velocity, adaptive tolerance, output, etc.)

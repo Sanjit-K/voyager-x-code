@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode.drive.opmode.teleop;
 
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
-import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -16,12 +15,12 @@ import org.firstinspires.ftc.teamcode.shooting.Turret;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 
-@TeleOp(name = "Red TeleOp", group = "TeleOp")
+@TeleOp(name = "Blue TeleOp", group = "TeleOp")
 public class RedTeleOp extends OpMode {
     private Follower follower;
     private LockMode lockMode;
     private boolean isLocked = false;
-    private static final Pose startingPose = new Pose(7.5, 7.75, Math.toRadians(0));
+    private static final Pose startingPose = new Pose(48.4, 32.886, Math.toRadians(0));
     private BarIntake barIntake;
     private Spindexer spindexer;
 
@@ -32,8 +31,8 @@ public class RedTeleOp extends OpMode {
     private ElapsedTime loopTimer;
     private ElapsedTime outtakeTimer;
     private LynxModule expansionHub;
-    private static final double OFFSET = Math.toRadians(0);
-    private Pose targetPose = new Pose(144, 144, 0); // Fixed target
+    private static final double OFFSET = Math.toRadians(180.0);
+    private Pose targetPose = new Pose(0, 144, 144); // Fixed target
 
 
     // Outtake routine state
@@ -59,7 +58,7 @@ public class RedTeleOp extends OpMode {
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor);
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
-        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, true, 182);
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, true);
         loopTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
 
@@ -120,11 +119,8 @@ public class RedTeleOp extends OpMode {
             turret.on();
             startOuttakeRoutine();
         }
-        if (gamepad1.right_trigger > 0.5) {
-            turret.trackTarget(follower.getPose(), targetPose, offset_turret);
-        } else {
-            turret.setTurretPower(0.0);
-        }
+        turret.trackTarget(follower.getPose(), targetPose, offset_turret);
+
 
         if(gamepad1.dpadDownWasPressed()){
             rpmCap = !rpmCap;
@@ -133,7 +129,7 @@ public class RedTeleOp extends OpMode {
 
         if(!rpmCap){ //if there is NO rpm cap.
             OUTTAKE_DELAY_MS = 600;
-            offset_turret = 7;
+            offset_turret = -7;
         }else{ //if there IS an RPM cap
             OUTTAKE_DELAY_MS = 300;
             offset_turret = 0;
@@ -177,11 +173,16 @@ public class RedTeleOp extends OpMode {
             handleSingleOuttake();
         }
 
-        if (spindexer.isFull()){
-            barIntake.stop();
-        }
+
         // Update spindexer
         spindexer.update();
+
+        // Spin out stuff
+        if (spindexer.isFull()){
+
+            spindexer.setShootIndex(1);
+            barIntake.spinOuttake();
+        }
 
 
         // Spindexer diagnostic telemetry (angle, velocity, adaptive tolerance, output, etc.)
@@ -215,7 +216,6 @@ public class RedTeleOp extends OpMode {
         kickerServo.kick();
 
         // Step 3: First advanceIntake call immediately
-        spindexer.advanceIntake();
         outtakeAdvanceCount++;
         lastAdvanceTime = outtakeTimer.milliseconds();
     }
