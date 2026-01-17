@@ -75,6 +75,7 @@ public class testTeleOp extends OpMode {
         follower.startTeleopDrive();
         turret.on();
         barIntake.spinIntake();
+        turret.transferOn();
     }
 
     @Override
@@ -208,12 +209,7 @@ public class testTeleOp extends OpMode {
         outtakeAdvanceCount = 0;
         outtakeTimer.reset();
         lastAdvanceTime = 0;
-        
-        
-        // Step 1: Turn on transfer wheel and turret wheel
-        turret.transferOn();
-        
-        // Step 1.5: Turn on lock mode
+
         
         // Step 2: Set kicker servo to kick
         kickerServo.kick();

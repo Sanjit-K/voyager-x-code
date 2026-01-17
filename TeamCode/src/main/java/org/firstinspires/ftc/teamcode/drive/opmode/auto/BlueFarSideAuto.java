@@ -62,7 +62,7 @@ public class BlueFarSideAuto extends OpMode {
     public static double OUTTAKE_DELAY_MS = 700;
 
     // -------------------- Loop timing --------------------
-    public static int LOOP_WAIT_MS = 100;
+    public static int LOOP_WAIT_MS = 50;
 
     // -------------------- Dynamic destinations --------------------
     // Park pose (same as your original far-side code)
@@ -80,7 +80,7 @@ public class BlueFarSideAuto extends OpMode {
     // -------------------- “Auto shoot power” equivalents in this framework --------------------
     // In your OpMode auto, shooter power is “RPM” + turret angle
     public static double currentRPM = 3250;
-    public static double targetAngleDeg = 286;
+    public static double targetAngleDeg = 287;
 
     // Optional: a target pose if you use turret tracking (left here for parity)
     private final Pose targetPose = new Pose(0, 144, 0);
@@ -122,7 +122,8 @@ public class BlueFarSideAuto extends OpMode {
                 "transferMotor",
                 false,
                 true,
-                true
+                true,
+                308
         );
 
         // Build paths
@@ -130,13 +131,6 @@ public class BlueFarSideAuto extends OpMode {
 
         // Startup config
         kickerServo.normal();
-        barIntake.spinIntake();
-
-        // Spin shooter / set RPM & turret angle early
-        turret.on();
-        turret.transferOn();
-        currentRPM = 3260;
-        targetAngleDeg = 286;
 
         panelsTelemetry.debug("Status", "Initialized");
         panelsTelemetry.update(telemetry);
@@ -152,7 +146,6 @@ public class BlueFarSideAuto extends OpMode {
         currentVolley = 0;
 
         turret.on();
-        turret.transferOn();
         barIntake.spinIntake();
 
         setState(0);
@@ -167,7 +160,6 @@ public class BlueFarSideAuto extends OpMode {
         turret.setShooterRPM(currentRPM);
         turret.goToPosition(targetAngleDeg);
         turret.on();
-        turret.transferOn();
 
         // Optional turret tracking (commented like your excerpt)
         // turret.trackTarget(follower.getPose(), targetPose);
@@ -179,6 +171,7 @@ public class BlueFarSideAuto extends OpMode {
         if (spindexer.isFull()) {
             barIntake.stop();
         }
+
 
         // Run auto state machine
         autonomousUpdate();
@@ -233,6 +226,7 @@ public class BlueFarSideAuto extends OpMode {
         if (now - lastAdvanceTimeMs >= OUTTAKE_DELAY_MS) {
             kickerServo.normal();
             spindexer.clearTracking();
+            turret.transferOff();
             barIntake.spinIntake();
             outtakeInProgress = false;
         }
@@ -258,7 +252,7 @@ public class BlueFarSideAuto extends OpMode {
                 double curr = turret.getTrackedTurretAngle();
                 double err = Math.abs(Math.IEEEremainder(targetAngleDeg - curr, 360.0));
 
-                if (err < 3.0) { // make sure angle is right
+                if (err < 3.0 && turret.getShooterRPM() > 3300) { // make sure angle is right
                     startOuttakeRoutine();
                     setState(1);
                 }
@@ -277,9 +271,6 @@ public class BlueFarSideAuto extends OpMode {
             // ------------------------------------------------------------
             case 2:
                 if (!follower.isBusy()) {
-                    // Small settle delay
-                    if (waitTimer.milliseconds() < 200) return;
-
                     // Go to shoot1
                     follower.followPath(paths.shoot1);
                     setState(3);
@@ -308,8 +299,6 @@ public class BlueFarSideAuto extends OpMode {
             // ------------------------------------------------------------
             case 5:
                 if (!follower.isBusy()) {
-                    if (waitTimer.milliseconds() < 400) return;
-
                     follower.followPath(paths.shoot2);
                     setState(6);
                 }
@@ -338,8 +327,6 @@ public class BlueFarSideAuto extends OpMode {
             // ------------------------------------------------------------
             case 8:
                 if (!follower.isBusy()) {
-                    if (waitTimer.milliseconds() < LOOP_WAIT_MS) return;
-
                     // Priority 1: time-based exit
                     if (matchTimer.seconds() > 25.0) {
                         paths.buildToPark(follower, follower.getPose());
@@ -348,6 +335,7 @@ public class BlueFarSideAuto extends OpMode {
                         break;
                     }
 
+                    if (waitTimer.milliseconds() < LOOP_WAIT_MS) return;
                     // Priority 2: if full, go shoot, then return to loop
                     if (spindexer.getBalls() > 0) {
                         paths.buildToShoot(follower, follower.getPose());
@@ -365,8 +353,6 @@ public class BlueFarSideAuto extends OpMode {
 
             case 9:
                 if (!follower.isBusy()) {
-                    if (waitTimer.milliseconds() < LOOP_WAIT_MS) return;
-
                     // Priority 1: time-based exit
                     if (matchTimer.seconds() > 25.0) {
                         paths.buildToPark(follower, follower.getPose());
@@ -375,6 +361,7 @@ public class BlueFarSideAuto extends OpMode {
                         break;
                     }
 
+                    if (waitTimer.milliseconds() < LOOP_WAIT_MS) return;
                     // Priority 2: if full, go shoot, then return to loop
                     if (spindexer.getBalls() > 0) {
                         paths.buildToShoot(follower, follower.getPose());

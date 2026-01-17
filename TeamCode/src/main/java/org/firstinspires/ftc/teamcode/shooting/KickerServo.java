@@ -8,7 +8,7 @@ public class KickerServo {
 
     // Position constants
     private static final double NORMAL_POSITION = 0.52;
-    private static final double KICK_POSITION = 0.39;
+    private static final double KICK_POSITION = 0.40;
 
     public KickerServo(HardwareMap hardwareMap, String name) {
         servo = hardwareMap.get(Servo.class, name);
