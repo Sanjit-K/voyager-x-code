@@ -516,6 +516,7 @@ public class BlueFarSideAuto extends OpMode {
         public void buildToPark(Follower follower, Pose currentPose) {
             toPark = follower.pathBuilder()
                     .addPath(new BezierLine(currentPose, PARK_POSE))
+                    .addPath(new BezierLine(currentPose, PARK_POSE))
                     .setLinearHeadingInterpolation(currentPose.getHeading(), PARK_POSE.getHeading())
                     .build();
         }

@@ -162,6 +162,10 @@ public class Turret {
         turretServo.setPower(power);
     }
 
+    public static double MIN_TURRET_DEG = 10.0;   // X
+    public static double MAX_TURRET_DEG = 170.0;  // Y
+
+
     private double getRawServoAngle() {
         double v = turretEncoder.getVoltage();
         if (v < 0)
@@ -201,14 +205,18 @@ public class Turret {
         double y = targetPose.getY() - robotPose.getY();
         double targetAngle = Math.atan2(y, x); // Angle in radians
         targetAngle += Math.toRadians(offset);
-        //targetAngle = Math.max(Math.PI * 3.0/2, targetAngle);
-        //targetAngle = Math.min(0, targetAngle);
+        targetAngle = Math.min(Math.PI * 3.0/2, targetAngle);
+        targetAngle = Math.max(0, targetAngle);
 
         double robotHeading = robotPose.getHeading();
         double desiredRelativeAngle = Math.toDegrees(targetAngle - robotHeading); // Degrees
 
         // Normalize desired angle to 0-360
         desiredRelativeAngle = normalizeAngle(desiredRelativeAngle);
+
+        if (desiredRelativeAngle > 180) {
+            desiredRelativeAngle = 180;
+        }
 
         double currentAngle = getTurretAngle();
         double error = smallestAngleDifference(desiredRelativeAngle, currentAngle);
