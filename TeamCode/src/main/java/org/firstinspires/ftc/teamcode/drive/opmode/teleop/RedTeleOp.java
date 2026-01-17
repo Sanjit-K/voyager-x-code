@@ -129,20 +129,17 @@ public class RedTeleOp extends OpMode {
             startOuttakeRoutine();
         }
 
-
-
         if(gamepad1.dpadDownWasPressed()){
             rpmCap = !rpmCap;
             gamepad1.rumble(200);
         }
 
-        if(!rpmCap){ //if there is NO rpm cap.
+        if (!rpmCap) { //if there is NO rpm cap.
             OUTTAKE_DELAY_MS = 600;
             offset_turret = 7;
-        }else{ //if there IS an RPM cap
+        } else { //if there IS an RPM cap
             OUTTAKE_DELAY_MS = 300;
             offset_turret = 0;
-
         }
 
 
