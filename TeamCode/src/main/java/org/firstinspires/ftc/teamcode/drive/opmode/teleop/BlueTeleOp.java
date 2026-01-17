@@ -131,6 +131,8 @@ public class BlueTeleOp extends OpMode {
 
         if (gamepad1.right_trigger > 0.5) {
             turret.trackTarget(follower.getPose(), targetPose, offset_turret);
+        } else {
+            turret.setTurretPower(0.0);
         }
 
 

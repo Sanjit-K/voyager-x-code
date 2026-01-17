@@ -103,9 +103,6 @@ public class RedTeleOp extends OpMode {
             follower.setPose(new Pose(7.5, 7.75, Math.toRadians(0)));
         }
 
-        // Intake control
-
-
         // Spindex control
         if (gamepad1.rightBumperWasPressed()) {
             spindexer.advanceIntake();
@@ -113,6 +110,12 @@ public class RedTeleOp extends OpMode {
             spindexer.retreatIntake();
         }
 
+        // Aim Turret
+        if (gamepad1.right_trigger > 0.5) {
+            turret.trackTarget(follower.getPose(), targetPose, offset_turret);
+        } else {
+            turret.setTurretPower(0.0);
+        }
 
         if (gamepad1.xWasPressed()){
             spindexer.clearTracking();
@@ -124,7 +127,6 @@ public class RedTeleOp extends OpMode {
             turret.on();
             startOuttakeRoutine();
         }
-        turret.trackTarget(follower.getPose(), targetPose, offset_turret);
 
 
         if(gamepad1.dpadDownWasPressed()){
