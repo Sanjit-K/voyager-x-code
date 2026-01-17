@@ -78,7 +78,7 @@ public class RedFarSideAuto extends OpMode {
 
     // -------------------- Shooter settings --------------------
     public static double currentRPM = 3250;
-    public static double targetAngleDeg = 287; // may need mirroring depending on your turret convention
+    public static double targetAngleDeg = 73; // may need mirroring depending on your turret convention
 
     // Optional: mirrored fixed target pose (Blue target (0,144) -> Red target (144,144))
     private final Pose targetPose = new Pose(144, 144, 0);
