@@ -92,7 +92,7 @@ public class RedAuto extends OpMode {
                 false,
                 true,
                 true,
-                90
+                52
         );
 
         // Paths
@@ -317,7 +317,7 @@ public class RedAuto extends OpMode {
                 if (!outtakeInProgress) {
                     follower.followPath(paths.pickupPreset3, 0.9, false);
                     currentRPM = 3250;
-                    targetAngle = 83;
+                    targetAngle = 73;
                     OUTTAKE_DELAY_MS = 700;
 
                     setState(15);
