@@ -58,7 +58,7 @@ public class RedTeleOp extends OpMode {
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor);
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
-        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, true, 73);
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, true, 75);
         loopTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
 
@@ -129,7 +129,7 @@ public class RedTeleOp extends OpMode {
 
         if(!rpmCap){ //if there is NO rpm cap.
             OUTTAKE_DELAY_MS = 600;
-            offset_turret = -7;
+            offset_turret = 7;
         }else{ //if there IS an RPM cap
             OUTTAKE_DELAY_MS = 300;
             offset_turret = 0;
@@ -178,9 +178,9 @@ public class RedTeleOp extends OpMode {
         spindexer.update();
 
         // Spin out stuff
-        if (spindexer.isFull()){
-
-            spindexer.setShootIndex(1);
+        if (gamepad1.aWasPressed()) {
+            barIntake.spinIntake();
+        } else if (gamepad1.bWasPressed()) {
             barIntake.spinOuttake();
         }
 
@@ -216,6 +216,7 @@ public class RedTeleOp extends OpMode {
         kickerServo.kick();
 
         // Step 3: First advanceIntake call immediately
+        spindexer.advanceIntake();
         outtakeAdvanceCount++;
         lastAdvanceTime = outtakeTimer.milliseconds();
     }

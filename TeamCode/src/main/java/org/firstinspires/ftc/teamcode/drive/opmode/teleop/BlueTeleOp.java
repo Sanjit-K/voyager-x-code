@@ -181,19 +181,11 @@ public class BlueTeleOp extends OpMode {
         spindexer.update();
 
         // Spin out stuff
-        if (spindexer.isFull() && !outtakeInProgress){
-//            spindexer.setShootIndex(1);
-//            spitoutTimer.reset();
-//            barIntake.spinOuttake();
+        if (gamepad1.aWasPressed()) {
+            barIntake.spinIntake();
+        } else if (gamepad1.bWasPressed()) {
+            barIntake.spinOuttake();
         }
-
-//        if (gamepad2.bWasPressed()) {
-//            spindexer.setShootIndex(1);
-//            spitoutTimer.reset();
-//            if (spitoutTimer.seconds() > 0.2) {
-//                barIntake.spinOuttake();
-//            }
-//        }
 
 
         // Spindexer diagnostic telemetry (angle, velocity, adaptive tolerance, output, etc.)
