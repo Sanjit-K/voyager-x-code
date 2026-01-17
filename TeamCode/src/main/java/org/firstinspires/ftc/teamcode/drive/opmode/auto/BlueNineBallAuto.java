@@ -65,6 +65,7 @@ public class BlueNineBallAuto extends OpMode {
 
     // Outtake cadence
     public static double OUTTAKE_DELAY_MS = 700;
+    private double targetAngle = 308;
 
     // -------------------- State machine --------------------
     private int pathState = 0;
@@ -131,9 +132,6 @@ public class BlueNineBallAuto extends OpMode {
 
         // Startup config
         kickerServo.normal();
-        barIntake.spinIntake();
-        turret.on();
-        turret.transferOn();
         turret.setShooterRPM(SHOOT_RPM);
 
 //        aprilTagScanner = new AprilTagScanner(hardwareMap, "limelight");
@@ -145,7 +143,6 @@ public class BlueNineBallAuto extends OpMode {
 
     @Override
     public void start() {
-        turret.goToPosition(SCAN_TURRET_DEG);
         outtakeInProgress = false;
         frozenTagId = null;
         setState(0);
@@ -164,8 +161,8 @@ public class BlueNineBallAuto extends OpMode {
 
         // 2) Always keep shooter ready
         turret.on();
-        turret.transferOn();
         turret.setShooterRPM(SHOOT_RPM);
+        turret.goToPosition(targetAngle);
 
         // 3) Update spindexer and run motif classification
         spindexer.update();
@@ -224,10 +221,8 @@ public class BlueNineBallAuto extends OpMode {
                     // Lock a tag decision here (read once at the shoot location)
 //                    frozenTagId = getBestVisibleTagId();
 
-                    double shootAngle = 200;
-                    turret.goToPosition(shootAngle);
-
                     // Optional small settle
+                    targetAngle = DEFAULT_SHOOT_TURRET_DEG;
                     if (stateTimer.milliseconds() < 150) return;
 
                     outtakeTargetShots = 3;

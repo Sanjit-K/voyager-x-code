@@ -23,7 +23,6 @@ public class BlueTeleOp extends OpMode {
     private boolean isLocked = false;
     private static final Pose startingPose = new Pose(48.400, 32.886, Math.toRadians(180));
     private BarIntake barIntake;
-    private Limelight3A limelight;
     private Spindexer spindexer;
 
     private int offset_turret = 0;
@@ -56,9 +55,6 @@ public class BlueTeleOp extends OpMode {
         expansionHub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
         follower = Constants.createFollower(hardwareMap);
         lockMode = new LockMode(follower);
-        limelight = hardwareMap.get(Limelight3A.class, "limelight");
-        limelight.pipelineSwitch(1);
-        limelight.start();
         barIntake = new BarIntake(hardwareMap, "barIntake", true);
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor);
@@ -124,11 +120,8 @@ public class BlueTeleOp extends OpMode {
             turret.on();
             startOuttakeRoutine();
         }
-        if (gamepad1.right_trigger > 0.5) {
-            turret.trackTarget(follower.getPose(), targetPose, offset_turret);
-        } else {
-            turret.setTurretPower(0.0);
-        }
+        turret.trackTarget(follower.getPose(), targetPose, offset_turret);
+
 
         if(gamepad1.dpadDownWasPressed()){
             rpmCap = !rpmCap;

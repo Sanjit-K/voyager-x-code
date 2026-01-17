@@ -205,8 +205,6 @@ public class Turret {
         double y = targetPose.getY() - robotPose.getY();
         double targetAngle = Math.atan2(y, x); // Angle in radians
         targetAngle += Math.toRadians(offset);
-        targetAngle = Math.min(Math.PI * 3.0/2, targetAngle);
-        targetAngle = Math.max(0, targetAngle);
 
         double robotHeading = robotPose.getHeading();
         double desiredRelativeAngle = Math.toDegrees(targetAngle - robotHeading); // Degrees
@@ -214,9 +212,7 @@ public class Turret {
         // Normalize desired angle to 0-360
         desiredRelativeAngle = normalizeAngle(desiredRelativeAngle);
 
-        if (desiredRelativeAngle > 180) {
-            desiredRelativeAngle = 180;
-        }
+        desiredRelativeAngle = Math.max(90,Math.min(270, desiredRelativeAngle));
 
         double currentAngle = getTurretAngle();
         double error = smallestAngleDifference(desiredRelativeAngle, currentAngle);

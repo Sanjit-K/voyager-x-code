@@ -23,7 +23,6 @@ public class RedTeleOp extends OpMode {
     private boolean isLocked = false;
     private static final Pose startingPose = new Pose(7.5, 7.75, Math.toRadians(0));
     private BarIntake barIntake;
-    private Limelight3A limelight;
     private Spindexer spindexer;
 
     private int offset_turret = 0;
@@ -56,9 +55,6 @@ public class RedTeleOp extends OpMode {
         expansionHub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
         follower = Constants.createFollower(hardwareMap);
         lockMode = new LockMode(follower);
-        limelight = hardwareMap.get(Limelight3A.class, "limelight");
-        limelight.pipelineSwitch(1);
-        limelight.start();
         barIntake = new BarIntake(hardwareMap, "barIntake", true);
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor);
