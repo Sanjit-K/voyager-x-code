@@ -34,6 +34,10 @@ public class BlueTeleOp extends OpMode {
     private static final double OFFSET = Math.toRadians(180.0);
     private Pose targetPose = new Pose(0, 144, 0); // Fixed target
 
+//    private final ElapsedTime spitoutTimer = new ElapsedTime();
+//    private boolean spitoutInProgress = false;
+//    private static final double SPITOUT_DELAY_S = 0.20;
+
 
     // Outtake routine state
     private boolean outtakeInProgress = false;
@@ -58,8 +62,9 @@ public class BlueTeleOp extends OpMode {
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor);
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
-        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, true);
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, true, 287);
         loopTimer = new ElapsedTime();
+//        spitoutTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
 
         follower.setStartingPose(startingPose);
@@ -176,11 +181,19 @@ public class BlueTeleOp extends OpMode {
         spindexer.update();
 
         // Spin out stuff
-        if (spindexer.isFull()){
-
-            spindexer.setShootIndex(1);
-            barIntake.spinOuttake();
+        if (spindexer.isFull() && !outtakeInProgress){
+//            spindexer.setShootIndex(1);
+//            spitoutTimer.reset();
+//            barIntake.spinOuttake();
         }
+
+//        if (gamepad2.bWasPressed()) {
+//            spindexer.setShootIndex(1);
+//            spitoutTimer.reset();
+//            if (spitoutTimer.seconds() > 0.2) {
+//                barIntake.spinOuttake();
+//            }
+//        }
 
 
         // Spindexer diagnostic telemetry (angle, velocity, adaptive tolerance, output, etc.)
@@ -214,6 +227,7 @@ public class BlueTeleOp extends OpMode {
         kickerServo.kick();
 
         // Step 3: First advanceIntake call immediately
+        spindexer.advanceIntake();
         outtakeAdvanceCount++;
         lastAdvanceTime = outtakeTimer.milliseconds();
     }

@@ -15,7 +15,7 @@ import org.firstinspires.ftc.teamcode.shooting.Turret;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 
-@TeleOp(name = "Blue TeleOp", group = "TeleOp")
+@TeleOp(name = "Red TeleOp", group = "TeleOp")
 public class RedTeleOp extends OpMode {
     private Follower follower;
     private LockMode lockMode;
@@ -32,7 +32,7 @@ public class RedTeleOp extends OpMode {
     private ElapsedTime outtakeTimer;
     private LynxModule expansionHub;
     private static final double OFFSET = Math.toRadians(180.0);
-    private Pose targetPose = new Pose(0, 144, 144); // Fixed target
+    private Pose targetPose = new Pose(144, 144, 0); // Fixed target
 
 
     // Outtake routine state
@@ -58,7 +58,7 @@ public class RedTeleOp extends OpMode {
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor);
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
-        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, true);
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, true, 73);
         loopTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
 
