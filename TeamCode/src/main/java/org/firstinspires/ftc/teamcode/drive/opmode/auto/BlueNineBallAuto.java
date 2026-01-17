@@ -57,7 +57,7 @@ public class BlueNineBallAuto extends OpMode {
 
     // -------------------- Config (tune in Panels) --------------------
     public static double SCAN_TURRET_DEG = 308;         // turret angle while scanning for tag
-    public static double DEFAULT_SHOOT_TURRET_DEG = 286; // fallback angle if tag not seen
+    public static double DEFAULT_SHOOT_TURRET_DEG = 308; // fallback angle if tag not seen
     public static double SHOOT_RPM = 2750;
 
     public static double PARK_SPEED = 0.70;         // follower speed scalar for park
@@ -176,23 +176,12 @@ public class BlueNineBallAuto extends OpMode {
         panelsTelemetry.debug("Y", follower.getPose().getY());
         panelsTelemetry.debug("Heading", follower.getPose().getHeading());
         panelsTelemetry.debug("Outtake", outtakeInProgress);
-        panelsTelemetry.debug("Balls", safeGetBalls());
+        panelsTelemetry.debug("Balls", spindexer.getBalls());
 
-//        boolean seen = (aprilTagScanner != null && aprilTagScanner.hasDetections());
-//        panelsTelemetry.debug("Tag Seen", seen);
-//        panelsTelemetry.debug("Frozen Tag", frozenTagId == null ? -1 : frozenTagId);
-//        panelsTelemetry.debug("Tag Count", aprilTagScanner == null ? 0 : aprilTagScanner.getDetectionCount());
-//        panelsTelemetry.debug("Cam FPS", aprilTagScanner == null ? 0 : aprilTagScanner.getCameraFPS());
 
         panelsTelemetry.update(telemetry);
     }
 
-    @Override
-    public void stop() {
-//        if (aprilTagScanner != null) {
-//            aprilTagScanner.close();
-//        }
-    }
 
     // -----------------------------------------------------------------------------------------
     // State machine
@@ -223,7 +212,7 @@ public class BlueNineBallAuto extends OpMode {
 
                     // Optional small settle
                     targetAngle = DEFAULT_SHOOT_TURRET_DEG;
-                    if (stateTimer.milliseconds() < 150) return;
+                    if (stateTimer.milliseconds() < 250) return;
 
                     outtakeTargetShots = 3;
                     startOuttakeRoutine(outtakeTargetShots);
@@ -249,9 +238,6 @@ public class BlueNineBallAuto extends OpMode {
             case 4:
                 if (!follower.isBusy()) {
                     if (stateTimer.milliseconds() < WAIT_AFTER_SHOOT2_MS) return;
-
-                    double shootAngle = 300;
-                    turret.goToPosition(shootAngle);
 
                     outtakeTargetShots = 2;
                     startOuttakeRoutine(outtakeTargetShots);
@@ -317,28 +303,6 @@ public class BlueNineBallAuto extends OpMode {
         }
     }
 
-    // -----------------------------------------------------------------------------------------
-    // Motif (ball) classification logic
-    // -----------------------------------------------------------------------------------------
-
-    // -----------------------------------------------------------------------------------------
-    // AprilTag -> choose angle selection
-    // -----------------------------------------------------------------------------------------
-
-
-
-
-    // -----------------------------------------------------------------------------------------
-    // Utility
-    // -----------------------------------------------------------------------------------------
-
-    private int safeGetBalls() {
-        try {
-            return spindexer.getBalls();
-        } catch (Throwable t) {
-            return -1;
-        }
-    }
 
     // -----------------------------------------------------------------------------------------
     // Paths (your provided geometry)
