@@ -346,7 +346,7 @@ public class BlueAuto extends OpMode {
 
             case 18:
                 if (!follower.isBusy()) {
-                    follower.followPath(paths.leave, 0.6, true);
+                    follower.followPath(paths.leave, 0.5, true);
                     setState(18);
                 }
                 break;
@@ -469,7 +469,7 @@ public class BlueAuto extends OpMode {
             leave = follower.pathBuilder().addPath(
                             new BezierLine(
                                     new Pose(61.600, 14.69),
-                                    new Pose(48.400, 32.886)
+                                    new Pose(61.60, 37.0)
                             )
                     ).setTangentHeadingInterpolation()
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))

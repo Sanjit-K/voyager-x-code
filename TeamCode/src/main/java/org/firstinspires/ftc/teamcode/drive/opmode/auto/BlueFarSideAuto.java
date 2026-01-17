@@ -67,8 +67,8 @@ public class BlueFarSideAuto extends OpMode {
     // -------------------- Dynamic destinations --------------------
     // Park pose (same as your original far-side code)
     public static final Pose PARK_POSE = new Pose(
-            48.400,
-            32.886,
+            44.0,
+            14.69,
             Math.toRadians(180)
     );
 

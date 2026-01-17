@@ -20,7 +20,7 @@ public class RedTeleOp extends OpMode {
     private Follower follower;
     private LockMode lockMode;
     private boolean isLocked = false;
-    private static final Pose startingPose = new Pose(95.600, 32.886, Math.toRadians(0));
+    private static final Pose startingPose = new Pose(82.400, 37, Math.toRadians(0));
     private BarIntake barIntake;
     private Spindexer spindexer;
 
@@ -100,7 +100,7 @@ public class RedTeleOp extends OpMode {
         }
 
         // Field Reset
-        if(gamepad1.startWasPressed()){
+        if (gamepad1.startWasPressed()){
             follower.setPose(new Pose(7.5, 7.75, Math.toRadians(0)));
         }
 
@@ -129,7 +129,7 @@ public class RedTeleOp extends OpMode {
             startOuttakeRoutine();
         }
 
-        if(gamepad1.dpadDownWasPressed()){
+        if (gamepad1.dpadDownWasPressed()){
             rpmCap = !rpmCap;
             gamepad1.rumble(200);
         }
@@ -225,11 +225,9 @@ public class RedTeleOp extends OpMode {
         }
 
 
-
-        // Spindexer diagnostic telemetry (angle, velocity, adaptive tolerance, output, etc.)
-
         // Telemetry
         telemetry.addData("Lock Mode Active", isLocked);
+        telemetry.addData("Robot Pose: ", "(" + follower.getPose().getX() + ", " + follower.getPose().getY() + ", " + follower.getPose().getHeading() + ")" );
         telemetry.addData("Spindexer Index", spindexer.getIntakeIndex());
         telemetry.addData("Adaptive Tolerance", String.format(java.util.Locale.US, "%.2f", spindexer.getLastAdaptiveTol()));
         telemetry.addData("Turret RPM Error", String.format(java.util.Locale.US, "%.1f", turret.getShooterRPM() - turret.getSetShooterRPM()));

@@ -66,8 +66,8 @@ public class RedFarSideAuto extends OpMode {
     // -------------------- Dynamic destinations (MIRRORED) --------------------
     // Blue PARK_POSE: (48.400, 32.886, 180deg) -> Red: (95.600, 32.886, 0deg)
     public static final Pose PARK_POSE = new Pose(
-            95.600,
-            32.886,
+            100.0,
+            14.690,
             Math.toRadians(0)
     );
 

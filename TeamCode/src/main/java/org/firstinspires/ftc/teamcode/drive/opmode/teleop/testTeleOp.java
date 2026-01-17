@@ -260,7 +260,7 @@ public class testTeleOp extends OpMode {
         spindexer.setShootIndex(index);
     }
 
-    private void handleSingleOuttake(){
+    private void handleSingleOuttake() {
         if (!singleAtPosition) {
             if (spindexer.isAtTarget(5.0)){
                 singleAtPosition = true;

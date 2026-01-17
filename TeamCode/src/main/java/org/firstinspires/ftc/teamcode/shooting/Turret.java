@@ -212,7 +212,7 @@ public class Turret {
         // Normalize desired angle to 0-360
         desiredRelativeAngle = normalizeAngle(desiredRelativeAngle);
 
-        desiredRelativeAngle = Math.max(90,Math.min(270, desiredRelativeAngle));
+        desiredRelativeAngle = Math.max(95,Math.min(265, desiredRelativeAngle));
 
         double currentAngle = getTurretAngle();
         double error = smallestAngleDifference(desiredRelativeAngle, currentAngle);

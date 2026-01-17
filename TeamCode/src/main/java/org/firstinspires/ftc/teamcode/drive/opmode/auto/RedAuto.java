@@ -348,7 +348,7 @@ public class RedAuto extends OpMode {
 
             case 18:
                 if (!follower.isBusy()) {
-                    follower.followPath(paths.leave, 0.7, true);
+                    follower.followPath(paths.leave, 0.5, true);
                     setState(18);
                 }
                 break;
@@ -483,7 +483,7 @@ public class RedAuto extends OpMode {
             leave = follower.pathBuilder().addPath(
                             new BezierLine(
                                     new Pose(82.400, 14.690),
-                                    new Pose(95.600, 32.886)
+                                    new Pose(82.400, 37)
                             )
                     ).setTangentHeadingInterpolation()
                     .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))

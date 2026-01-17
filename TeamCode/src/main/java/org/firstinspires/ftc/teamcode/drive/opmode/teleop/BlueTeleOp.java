@@ -20,7 +20,7 @@ public class BlueTeleOp extends OpMode {
     private Follower follower;
     private LockMode lockMode;
     private boolean isLocked = false;
-    private static final Pose startingPose = new Pose(48.400, 32.886, Math.toRadians(180));
+    private static final Pose startingPose = new Pose(61.60, 37, Math.toRadians(180));
     private BarIntake barIntake;
     private Spindexer spindexer;
 
@@ -223,6 +223,7 @@ public class BlueTeleOp extends OpMode {
         // Telemetry
         telemetry.addData("Lock Mode Active", isLocked);
         telemetry.addData("Spindexer Index", spindexer.getIntakeIndex());
+        telemetry.addData("Robot Pose: ", "(" + follower.getPose().getX() + ", " + follower.getPose().getY() + ", " + follower.getPose().getHeading() + ")" );
         telemetry.addData("Adaptive Tolerance", String.format(java.util.Locale.US, "%.2f", spindexer.getLastAdaptiveTol()));
         telemetry.addData("Turret RPM Error", String.format(java.util.Locale.US, "%.1f", turret.getShooterRPM() - turret.getSetShooterRPM()));
         telemetry.addData("Outtake In Progress", outtakeInProgress);
