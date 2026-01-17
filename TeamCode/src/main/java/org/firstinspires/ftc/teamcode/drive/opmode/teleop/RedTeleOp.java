@@ -73,6 +73,7 @@ public class RedTeleOp extends OpMode {
     public void start() {
         follower.startTeleopDrive();
         turret.on();
+        turret.transferOn();
         barIntake.spinIntake();
     }
 
@@ -127,6 +128,7 @@ public class RedTeleOp extends OpMode {
             turret.on();
             startOuttakeRoutine();
         }
+
 
 
         if(gamepad1.dpadDownWasPressed()){
@@ -184,9 +186,14 @@ public class RedTeleOp extends OpMode {
         // Update spindexer
         spindexer.update();
 
+        if (spindexer.isFull()){
+            barIntake.stop();
+        }
+
         // Spin out stuff
-        // Spin out stuff
-        if (gamepad1.bWasPressed()) {
+        if (gamepad1.aWasPressed()) {
+            barIntake.spinIntake();
+        } else if (gamepad1.bWasPressed()) {
             spinActive = true;
             loopCounter = 0;
             spinRuns = 0;
@@ -200,11 +207,26 @@ public class RedTeleOp extends OpMode {
                 spinRuns++;
                 loopCounter = 0;
 
-                if (spinRuns == 5) {
+                if (spinRuns == 2) {
                     spinActive = false;
                 }
             }
         }
+
+        if (spinActive) {
+            loopCounter++;
+
+            if (loopCounter == 20) {
+                barIntake.spinOuttake();
+                spinRuns++;
+                loopCounter = 0;
+
+                if (spinRuns == 3) {
+                    spinActive = false;
+                }
+            }
+        }
+
 
 
         // Spindexer diagnostic telemetry (angle, velocity, adaptive tolerance, output, etc.)

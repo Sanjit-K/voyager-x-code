@@ -81,6 +81,7 @@ public class BlueTeleOp extends OpMode {
         follower.startTeleopDrive();
         turret.on();
         barIntake.spinIntake();
+        turret.transferOn();
     }
 
     @Override
@@ -189,8 +190,14 @@ public class BlueTeleOp extends OpMode {
 
         spindexer.update();
 
+        if (spindexer.isFull()){
+            barIntake.stop();
+        }
+
         // Spin out stuff
-        if (gamepad1.bWasPressed()) {
+        if (gamepad1.aWasPressed()) {
+            barIntake.spinIntake();
+        } else if (gamepad1.bWasPressed()) {
             spinActive = true;
             loopCounter = 0;
             spinRuns = 0;
@@ -204,7 +211,7 @@ public class BlueTeleOp extends OpMode {
                 spinRuns++;
                 loopCounter = 0;
 
-                if (spinRuns == 5) {
+                if (spinRuns == 2) {
                     spinActive = false;
                 }
             }
