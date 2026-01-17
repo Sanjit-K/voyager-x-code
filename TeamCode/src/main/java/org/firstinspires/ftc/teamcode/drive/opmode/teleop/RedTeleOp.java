@@ -20,7 +20,7 @@ public class RedTeleOp extends OpMode {
     private Follower follower;
     private LockMode lockMode;
     private boolean isLocked = false;
-    private static final Pose startingPose = new Pose(48.4, 32.886, Math.toRadians(0));
+    private static final Pose startingPose = new Pose(95.600, 32.886, Math.toRadians(0));
     private BarIntake barIntake;
     private Spindexer spindexer;
 
@@ -31,7 +31,7 @@ public class RedTeleOp extends OpMode {
     private ElapsedTime loopTimer;
     private ElapsedTime outtakeTimer;
     private LynxModule expansionHub;
-    private static final double OFFSET = Math.toRadians(180.0);
+    private static final double OFFSET = Math.toRadians(0);
     private Pose targetPose = new Pose(144, 144, 0); // Fixed target
 
 

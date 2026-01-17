@@ -346,7 +346,7 @@ public class BlueAuto extends OpMode {
 
             case 18:
                 if (!follower.isBusy()) {
-                    follower.followPath(paths.leave);
+                    follower.followPath(paths.leave, 0.6, true);
                     setState(18);
                 }
                 break;
