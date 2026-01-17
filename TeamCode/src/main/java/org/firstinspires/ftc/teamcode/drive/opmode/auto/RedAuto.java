@@ -348,7 +348,7 @@ public class RedAuto extends OpMode {
 
             case 18:
                 if (!follower.isBusy()) {
-                    follower.followPath(paths.leave, 0.6, true);
+                    follower.followPath(paths.leave, 0.7, true);
                     setState(18);
                 }
                 break;

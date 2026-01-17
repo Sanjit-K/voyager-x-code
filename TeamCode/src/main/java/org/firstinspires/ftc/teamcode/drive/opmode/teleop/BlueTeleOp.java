@@ -24,6 +24,7 @@ public class BlueTeleOp extends OpMode {
     private BarIntake barIntake;
     private Spindexer spindexer;
 
+
     private int offset_turret = 0;
     private KickerServo kickerServo;
     private Turret turret;
@@ -48,6 +49,11 @@ public class BlueTeleOp extends OpMode {
     private int outtakeAdvanceCount = 0;
     private double lastAdvanceTime = 0;
     private static double OUTTAKE_DELAY_MS = 300;
+
+    private int spinRuns = 0;
+    private int loopCounter = 0;
+    private boolean spinActive = false;
+
 
     private double currentRPM = 2500.0;
 
@@ -99,11 +105,9 @@ public class BlueTeleOp extends OpMode {
                     OFFSET);
         }
 
-        // Intake control
-        if (gamepad1.aWasPressed()) {
-            barIntake.spinIntake();
-        } else if (gamepad1.bWasPressed()) {
-            barIntake.spinOuttake();
+        // Field Reset
+        if(gamepad1.startWasPressed()){
+            follower.setPose(new Pose(136.5, 7.75, Math.toRadians(180)));
         }
 
         // Spindex control
@@ -124,7 +128,10 @@ public class BlueTeleOp extends OpMode {
             turret.on();
             startOuttakeRoutine();
         }
-        turret.trackTarget(follower.getPose(), targetPose, offset_turret);
+
+        if (gamepad1.right_trigger > 0.5) {
+            turret.trackTarget(follower.getPose(), targetPose, offset_turret);
+        }
 
 
         if(gamepad1.dpadDownWasPressed()){
@@ -181,10 +188,24 @@ public class BlueTeleOp extends OpMode {
         spindexer.update();
 
         // Spin out stuff
-        if (gamepad1.aWasPressed()) {
-            barIntake.spinIntake();
-        } else if (gamepad1.bWasPressed()) {
-            barIntake.spinOuttake();
+        if (gamepad1.bWasPressed()) {
+            spinActive = true;
+            loopCounter = 0;
+            spinRuns = 0;
+        }
+
+        if (spinActive) {
+            loopCounter++;
+
+            if (loopCounter == 20) {
+                barIntake.spinOuttake();
+                spinRuns++;
+                loopCounter = 0;
+
+                if (spinRuns == 5) {
+                    spinActive = false;
+                }
+            }
         }
 
 

@@ -45,6 +45,10 @@ public class RedTeleOp extends OpMode {
     private double lastAdvanceTime = 0;
     private static double OUTTAKE_DELAY_MS = 300;
 
+    private int spinRuns = 0;
+    private int loopCounter = 0;
+    private boolean spinActive = false;
+
     private double currentRPM = 2500.0;
 
 
@@ -58,7 +62,7 @@ public class RedTeleOp extends OpMode {
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor);
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
-        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, true, 71);
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, true, 72);
         loopTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
 
@@ -94,12 +98,13 @@ public class RedTeleOp extends OpMode {
                     OFFSET);
         }
 
-        // Intake control
-        if (gamepad1.aWasPressed()) {
-            barIntake.spinIntake();
-        } else if (gamepad1.bWasPressed()) {
-            barIntake.spinOuttake();
+        // Field Reset
+        if(gamepad1.startWasPressed()){
+            follower.setPose(new Pose(7.5, 7.75, Math.toRadians(0)));
         }
+
+        // Intake control
+
 
         // Spindex control
         if (gamepad1.rightBumperWasPressed()) {
@@ -178,10 +183,25 @@ public class RedTeleOp extends OpMode {
         spindexer.update();
 
         // Spin out stuff
-        if (gamepad1.aWasPressed()) {
-            barIntake.spinIntake();
-        } else if (gamepad1.bWasPressed()) {
-            barIntake.spinOuttake();
+        // Spin out stuff
+        if (gamepad1.bWasPressed()) {
+            spinActive = true;
+            loopCounter = 0;
+            spinRuns = 0;
+        }
+
+        if (spinActive) {
+            loopCounter++;
+
+            if (loopCounter == 20) {
+                barIntake.spinOuttake();
+                spinRuns++;
+                loopCounter = 0;
+
+                if (spinRuns == 5) {
+                    spinActive = false;
+                }
+            }
         }
 
 
