@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode.drive.opmode.teleop;
 
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
-import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -175,7 +174,8 @@ public class BlueTeleOp extends OpMode {
         }
 
         if (spindexer.isFull()){
-            barIntake.stop();
+            spindexer.setShootIndex(1);
+            barIntake.spinOuttake();
         }
         // Update spindexer
         spindexer.update();
@@ -212,7 +212,6 @@ public class BlueTeleOp extends OpMode {
         kickerServo.kick();
 
         // Step 3: First advanceIntake call immediately
-        spindexer.advanceIntake();
         outtakeAdvanceCount++;
         lastAdvanceTime = outtakeTimer.milliseconds();
     }
