@@ -101,6 +101,7 @@ public class BlueTeleOp extends OpMode {
         // Field Reset
         if(gamepad1.startWasPressed()){
             follower.setPose(new Pose(136.5, 7.75, Math.toRadians(180)));
+            turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, true, turret.getTurretAngle());
         }
 
         // Spindex control

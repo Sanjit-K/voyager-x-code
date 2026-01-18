@@ -102,6 +102,8 @@ public class RedTeleOp extends OpMode {
         // Field Reset
         if (gamepad1.startWasPressed()){
             follower.setPose(new Pose(7.5, 7.75, Math.toRadians(0)));
+            turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, true, turret.getTurretAngle());
+
         }
 
         // Spindex control
@@ -136,7 +138,7 @@ public class RedTeleOp extends OpMode {
 
         if (!rpmCap) { //if there is NO rpm cap.
             OUTTAKE_DELAY_MS = 600;
-            offset_turret = 7;
+            offset_turret = 8;
         } else { //if there IS an RPM cap
             OUTTAKE_DELAY_MS = 300;
             offset_turret = 0;
