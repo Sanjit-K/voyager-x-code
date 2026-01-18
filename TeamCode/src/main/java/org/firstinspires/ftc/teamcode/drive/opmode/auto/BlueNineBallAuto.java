@@ -8,6 +8,7 @@ import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.PathChain;
+import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -51,21 +52,34 @@ public class BlueNineBallAuto extends OpMode {
     private KickerServo kickerServo;
     private Turret turret;
 
-    // -------------------- AprilTag Scanner (REAL) --------------------
-    private AprilTagScanner aprilTagScanner;
-    private Integer frozenTagId = null; // "lock in" the best tag id at the shoot location
+    // -------------------- Motifs --------------------
+    private Limelight3A limelight;
+    private int scannedTagId = 0;
+
+    // Simple motif lookup helpers. Given a tag id (21,22,23) return a 4-int pattern
+    // The integers are placeholders (0/1/2) and can be changed later.
+    private static int[] getMotifForTag(int tagId) {
+        switch (tagId) {
+            case 21: return new int[]{0, 0, 2, 1};
+            case 22: return new int[]{1, 1, 0, 2};
+            case 23: return new int[]{2, 2, 1, 0};
+            default: return null;
+        }
+    }
+
+    private int[] order;
+
 
     // -------------------- Config (tune in Panels) --------------------
     public static double SCAN_TURRET_DEG = 308;         // turret angle while scanning for tag
-    public static double DEFAULT_SHOOT_TURRET_DEG = 308; // fallback angle if tag not seen
+    public static double SHOOT_DEG = 308;
     public static double SHOOT_RPM = 2750;
 
-    public static double PARK_SPEED = 0.70;         // follower speed scalar for park
-    public static int WAIT_AFTER_SHOOT2_MS = 200;   // requested settle wait
+    public static double PARK_SPEED = 0.50;         // follower speed scalar for park
 
     // Outtake cadence
     public static double OUTTAKE_DELAY_MS = 700;
-    private double targetAngle = 308;
+    private double targetAngle = SCAN_TURRET_DEG;
 
     // -------------------- State machine --------------------
     private int pathState = 0;
@@ -84,12 +98,9 @@ public class BlueNineBallAuto extends OpMode {
     private final ElapsedTime outtakeTimer = new ElapsedTime();
     private boolean outtakeInProgress = false;
     private int outtakeAdvanceCount = 0;
-    private int outtakeTargetShots = 3;        // set to 3 for first volley, 2 for second
     private double lastAdvanceTimeMs = 0.0;
 
-    // -------------------- Motif (ball) classification --------------------
-    private enum BallClass { ALLIANCE_OK, OPPONENT, UNKNOWN }
-    public static boolean EJECT_OPPONENT_BALLS = true;
+
 
     // -----------------------------------------------------------------------------------------
     // init / start / loop
@@ -126,6 +137,10 @@ public class BlueNineBallAuto extends OpMode {
                 true,
                 308
         );
+        limelight = hardwareMap.get(Limelight3A.class, "limelight");
+        limelight.pipelineSwitch(0);   // make sure pipeline 0 is APRILTAG
+        limelight.setPollRateHz(100);
+        limelight.start();
 
         // Paths
         paths = new Paths(follower);
@@ -134,7 +149,6 @@ public class BlueNineBallAuto extends OpMode {
         kickerServo.normal();
         turret.setShooterRPM(SHOOT_RPM);
 
-//        aprilTagScanner = new AprilTagScanner(hardwareMap, "limelight");
 
 
         panelsTelemetry.debug("Status", "Initialized");
@@ -144,7 +158,6 @@ public class BlueNineBallAuto extends OpMode {
     @Override
     public void start() {
         outtakeInProgress = false;
-        frozenTagId = null;
         setState(0);
 
         stateTimer.reset();
@@ -166,6 +179,9 @@ public class BlueNineBallAuto extends OpMode {
 
         // 3) Update spindexer and run motif classification
         spindexer.update();
+        if (!outtakeInProgress && spindexer.isFull()) {
+            barIntake.stop();
+        }
 
         // 4) Run state machine
         autonomousUpdate();
@@ -194,13 +210,19 @@ public class BlueNineBallAuto extends OpMode {
             return;
         }
 
+        if (scannedTagId == 0) {
+            // Check for tag detection
+            scannedTagId = limelight.getLatestResult().getFiducialResults().get(0).getFiducialId();
+            order = getMotifForTag(scannedTagId);
+            panelsTelemetry.debug("Scanned Tag ID", scannedTagId);
+        }
+
         switch (pathState) {
 
             // ------------------------------------------------------------
             // 0) Turret to scan angle, start path ShootPreset
             // ------------------------------------------------------------
             case 0:
-                turret.goToPosition(SCAN_TURRET_DEG);
                 follower.followPath(paths.ShootPreset);
                 setState(1);
                 break;
@@ -208,21 +230,18 @@ public class BlueNineBallAuto extends OpMode {
             case 1:
                 if (!follower.isBusy()) {
                     // Lock a tag decision here (read once at the shoot location)
-//                    frozenTagId = getBestVisibleTagId();
 
                     // Optional small settle
-                    targetAngle = DEFAULT_SHOOT_TURRET_DEG;
-                    if (stateTimer.milliseconds() < 250) return;
+                    targetAngle = SHOOT_DEG;
+                    if (stateTimer.milliseconds() < 500) return;
 
-                    outtakeTargetShots = 3;
-                    startOuttakeRoutine(outtakeTargetShots);
+                    startOuttakeRoutine();
                     setState(2);
                 }
                 break;
 
             case 2:
                 if (!outtakeInProgress) {
-                    barIntake.spinIntake();
                     follower.followPath(paths.Pickup2);
                     setState(3);
                 }
@@ -237,10 +256,7 @@ public class BlueNineBallAuto extends OpMode {
 
             case 4:
                 if (!follower.isBusy()) {
-                    if (stateTimer.milliseconds() < WAIT_AFTER_SHOOT2_MS) return;
-
-                    outtakeTargetShots = 2;
-                    startOuttakeRoutine(outtakeTargetShots);
+                    startOuttakeRoutine();
                     setState(5);
                 }
                 break;
@@ -252,30 +268,21 @@ public class BlueNineBallAuto extends OpMode {
                 }
                 break;
 
-            case 6:
-                if (!follower.isBusy()) {
-                    setState(7);
-                }
-                break;
-
             case 7:
                 break;
         }
     }
 
-    private void startOuttakeRoutine(int targetShots) {
+    private void startOuttakeRoutine() {
         outtakeInProgress = true;
         outtakeAdvanceCount = 0;
-        outtakeTargetShots = targetShots;
         outtakeTimer.reset();
         lastAdvanceTimeMs = 0.0;
 
-        turret.on();
-        turret.transferOn();
-
+        // Kick
         kickerServo.kick();
 
-        // Advance immediately for shot #1
+        // First advance immediately
         spindexer.advanceIntake();
         outtakeAdvanceCount++;
         lastAdvanceTimeMs = outtakeTimer.milliseconds();
@@ -284,8 +291,7 @@ public class BlueNineBallAuto extends OpMode {
     private void handleOuttakeRoutine() {
         double now = outtakeTimer.milliseconds();
 
-        // Advance for shot #2..#N
-        if (outtakeAdvanceCount < outtakeTargetShots) {
+        if (outtakeAdvanceCount < 3) {
             if (now - lastAdvanceTimeMs >= OUTTAKE_DELAY_MS) {
                 spindexer.advanceIntake();
                 outtakeAdvanceCount++;
@@ -294,7 +300,7 @@ public class BlueNineBallAuto extends OpMode {
             return;
         }
 
-        // After final advance, wait one more delay then finish
+        // After the 3 advances, wait one more delay then finish
         if (now - lastAdvanceTimeMs >= OUTTAKE_DELAY_MS) {
             kickerServo.normal();
             spindexer.clearTracking();

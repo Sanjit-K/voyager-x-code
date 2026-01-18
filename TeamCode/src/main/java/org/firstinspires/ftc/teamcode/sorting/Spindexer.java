@@ -220,6 +220,15 @@ public class Spindexer {
         startMoveToAngle(SHOOT_ANGLES[index]);
     }
 
+    public void advanceShoot() {
+        shootIndex = (shootIndex + 1) % 3;
+        setShootIndex(shootIndex);
+    }
+
+    public void retreatShoot() {
+        shootIndex = (shootIndex + 2) % 3; // equivalent to -1
+        setShootIndex(shootIndex);
+    }
     public void setColorAtPos(char color, int index) {
         if (index >= 0 && index < 3) filled[index] = color;
     }

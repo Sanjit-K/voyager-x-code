@@ -35,11 +35,6 @@ public class BlueTeleOp extends OpMode {
     private static final double OFFSET = Math.toRadians(180.0);
     private Pose targetPose = new Pose(0, 144, 0); // Fixed target
 
-//    private final ElapsedTime spitoutTimer = new ElapsedTime();
-//    private boolean spitoutInProgress = false;
-//    private static final double SPITOUT_DELAY_S = 0.20;
-
-
     // Outtake routine state
     private boolean outtakeInProgress = false;
 
@@ -50,9 +45,7 @@ public class BlueTeleOp extends OpMode {
     private double lastAdvanceTime = 0;
     private static double OUTTAKE_DELAY_MS = 300;
 
-    private int spinRuns = 0;
-    private int loopCounter = 0;
-    private boolean spinActive = false;
+    private int spinInterval = 0;
 
 
     private double currentRPM = 2500.0;
@@ -70,7 +63,6 @@ public class BlueTeleOp extends OpMode {
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
         turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, true, 287);
         loopTimer = new ElapsedTime();
-//        spitoutTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
 
         follower.setStartingPose(startingPose);
@@ -142,10 +134,11 @@ public class BlueTeleOp extends OpMode {
             gamepad1.rumble(200);
         }
 
-        if(!rpmCap){ //if there is NO rpm cap.
+        if (!rpmCap){ //if there is NO rpm cap.
             OUTTAKE_DELAY_MS = 600;
             offset_turret = -7;
-        }else{ //if there IS an RPM cap
+        }
+        else { //if there IS an RPM cap
             OUTTAKE_DELAY_MS = 300;
             offset_turret = 0;
 
@@ -165,12 +158,7 @@ public class BlueTeleOp extends OpMode {
         turret.setShooterRPM(currentRPM);
         turret.on(); // Update velocity
 
-        if (gamepad1.right_trigger > 0.5 && Math.abs(turret.getSetShooterRPM()-turret.getShooterRPM()) < 20){
-            gamepad1.rumble(100);
-        }
-        else {
-            gamepad1.stopRumble();
-        }
+
         telemetry.addData("Calculated Distance (in)", distance);
         telemetry.addData("Current target RPM:", currentRPM);
 
@@ -188,34 +176,20 @@ public class BlueTeleOp extends OpMode {
             handleSingleOuttake();
         }
 
-        spindexer.update();
 
-        if (spindexer.isFull()){
-            barIntake.stop();
-        }
-
-        // Spin out stuff
-        if (gamepad1.aWasPressed()) {
-            barIntake.spinIntake();
-        } else if (gamepad1.bWasPressed()) {
-            spinActive = true;
-            loopCounter = 0;
-            spinRuns = 0;
-        }
-
-        if (spinActive) {
-            loopCounter++;
-
-            if (loopCounter == 20) {
+        if (spindexer.isFull() && !outtakeInProgress && !singleOuttakeInProgress){
+            spindexer.setShootIndex(1);
+            if (spinInterval > 20 && spinInterval < 40)
                 barIntake.spinOuttake();
-                spinRuns++;
-                loopCounter = 0;
-
-                if (spinRuns == 2) {
-                    spinActive = false;
-                }
+            else {
+                spinInterval++;
+                barIntake.stop();
             }
         }
+
+        spindexer.update();
+
+
 
 
         // Spindexer diagnostic telemetry (angle, velocity, adaptive tolerance, output, etc.)
@@ -244,14 +218,9 @@ public class BlueTeleOp extends OpMode {
         // Step 1: Turn on transfer wheel and turret wheel
         turret.transferOn();
 
-        // Step 1.5: Turn on lock mode
-
         // Step 2: Set kicker servo to kick
         kickerServo.kick();
 
-        // Step 3: First advanceIntake call immediately
-        spindexer.advanceIntake();
-        outtakeAdvanceCount++;
         lastAdvanceTime = outtakeTimer.milliseconds();
     }
 
@@ -259,9 +228,9 @@ public class BlueTeleOp extends OpMode {
         double currentTime = outtakeTimer.milliseconds();
 
         // Check if it's time for the next advanceIntake call
-        if (outtakeAdvanceCount < 3) {
+        if (outtakeAdvanceCount < 2) {
             if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS) {
-                spindexer.advanceIntake();
+                spindexer.advanceShoot();
                 outtakeAdvanceCount++;
                 lastAdvanceTime = currentTime;
             }
@@ -271,6 +240,7 @@ public class BlueTeleOp extends OpMode {
                 kickerServo.normal();
                 spindexer.clearTracking();
                 barIntake.spinIntake();
+                spindexer.setIntakeIndex(0);
                 outtakeInProgress = false;
                 isLocked = false;
             }
