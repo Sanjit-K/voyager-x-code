@@ -401,6 +401,7 @@ public class BlueTwelveBallAuto extends OpMode {
     // -----------------------------------------------------------------------------------------
 
 
+
     public static class Paths {
         public PathChain ShootPreset;
         public PathChain Pickup1;
@@ -430,6 +431,7 @@ public class BlueTwelveBallAuto extends OpMode {
                                     new Pose(14.000, 84.500)
                             )
                     ).setConstantHeadingInterpolation(Math.toRadians(180))
+
                     .build();
 
             Overflow = follower.pathBuilder().addPath(
@@ -483,9 +485,12 @@ public class BlueTwelveBallAuto extends OpMode {
                     .build();
 
             Shoot3 = follower.pathBuilder().addPath(
-                            new BezierLine(
+                            new BezierCurve(
                                     new Pose(9.000, 35.500),
-
+                                    new Pose(20.185, 48.501),
+                                    new Pose(3.191, 75.649),
+                                    new Pose(52.419, 68.354),
+                                    new Pose(32.928, 93.919),
                                     new Pose(38.000, 108.000)
                             )
                     ).setConstantHeadingInterpolation(Math.toRadians(180))
@@ -503,5 +508,6 @@ public class BlueTwelveBallAuto extends OpMode {
                     .build();
         }
     }
+
 
 }
