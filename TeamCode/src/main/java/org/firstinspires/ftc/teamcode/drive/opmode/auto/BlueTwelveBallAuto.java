@@ -280,70 +280,80 @@ public class BlueTwelveBallAuto extends OpMode {
                 break;
 
             // ------------------------------------------------------------
-            // 6) After pickup2, shoot2
+            // 6) Overflow
             // ------------------------------------------------------------
             case 6:
                 if (!follower.isBusy()) {
-                    follower.followPath(paths.Shoot2);
+                    follower.followPath(paths.Overflow);
                     setState(7);
                 }
                 break;
 
             // ------------------------------------------------------------
-            // 7) After shoot2 path completes, start outtake
+            // 7) After overflow, shoot2
             // ------------------------------------------------------------
             case 7:
                 if (!follower.isBusy()) {
-                    startOuttakeRoutine();
+                    follower.followPath(paths.Shoot2);
                     setState(8);
+                }
+                break;
+
+            // ------------------------------------------------------------
+            // 8) After shoot2 path completes, start outtake
+            // ------------------------------------------------------------
+            case 8:
+                if (!follower.isBusy()) {
+                    startOuttakeRoutine();
+                    setState(9);
                     currentOrderIndex = 3;
                 }
                 break;
 
             // ------------------------------------------------------------
-            // 8) After outtake, pickup3 (restored missing case)
-            // ------------------------------------------------------------
-            case 8:
-                if (!outtakeInProgress) {
-                    follower.followPath(paths.Pickup3);
-                    setState(9);
-                }
-                break;
-
-            // ------------------------------------------------------------
-            // 9) After pickup3, shoot3
+            // 9) After outtake, pickup3
             // ------------------------------------------------------------
             case 9:
-                if (!follower.isBusy()) {
-                    follower.followPath(paths.Shoot3);
+                if (!outtakeInProgress) {
+                    follower.followPath(paths.Pickup3);
                     setState(10);
                 }
                 break;
 
             // ------------------------------------------------------------
-            // 10) After shoot3 path completes, start outtake
+            // 10) After pickup3, shoot3
             // ------------------------------------------------------------
             case 10:
                 if (!follower.isBusy()) {
-                    startOuttakeRoutine();
+                    follower.followPath(paths.Shoot3);
                     setState(11);
                 }
                 break;
 
             // ------------------------------------------------------------
-            // 11) After final outtake, park
+            // 11) After shoot3 path completes, start outtake
             // ------------------------------------------------------------
             case 11:
+                if (!follower.isBusy()) {
+                    startOuttakeRoutine();
+                    setState(12);
+                }
+                break;
+
+            // ------------------------------------------------------------
+            // 12) After final outtake, park
+            // ------------------------------------------------------------
+            case 12:
                 if (!outtakeInProgress) {
                     follower.followPath(paths.Park, PARK_SPEED, false);
-                    setState(12);
+                    setState(13);
                 }
                 break;
 
             // ------------------------------------------------------------
             // 13) Idle
             // ------------------------------------------------------------
-            case 12:
+            case 13:
                 break;
         }
     }
@@ -390,92 +400,108 @@ public class BlueTwelveBallAuto extends OpMode {
     // Paths (your provided geometry)
     // -----------------------------------------------------------------------------------------
 
+
     public static class Paths {
         public PathChain ShootPreset;
         public PathChain Pickup1;
+        public PathChain Overflow;
         public PathChain Shoot1;
         public PathChain Pickup2;
         public PathChain Shoot2;
-
         public PathChain Pickup3;
         public PathChain Shoot3;
-
         public PathChain Park;
 
         public Paths(Follower follower) {
-
-            // These match the pathing you showed
             ShootPreset = follower.pathBuilder().addPath(
                             new BezierLine(
-                                    new Pose(22.55, 123.14),
-                                    new Pose(48.000, 96.000)
+                                    new Pose(22.500, 123.000),
+
+                                    new Pose(38.000, 108.000)
                             )
-                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    ).setConstantHeadingInterpolation(Math.toRadians(180))
+
                     .build();
 
             Pickup1 = follower.pathBuilder().addPath(
                             new BezierCurve(
-                                    new Pose(48.000, 96.000),
-                                    new Pose(43.359, 80.552),
-                                    new Pose(15.381, 83.807)
+                                    new Pose(38.000, 108.000),
+                                    new Pose(67.500, 79.000),
+                                    new Pose(14.000, 84.500)
                             )
-                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    ).setConstantHeadingInterpolation(Math.toRadians(180))
+                    .build();
+
+            Overflow = follower.pathBuilder().addPath(
+                            new BezierCurve(
+                                    new Pose(14.000, 84.500),
+                                    new Pose(37.000, 76.000),
+                                    new Pose(15.500, 76.000)
+                            )
+                    ).setConstantHeadingInterpolation(Math.toRadians(180))
+
                     .build();
 
             Shoot1 = follower.pathBuilder().addPath(
                             new BezierLine(
-                                    new Pose(15.381, 83.807),
-                                    new Pose(48.000, 96.000)
+                                    new Pose(15.500, 76.000),
+
+                                    new Pose(38.000, 108.000)
                             )
-                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    ).setConstantHeadingInterpolation(Math.toRadians(180))
+
                     .build();
 
             Pickup2 = follower.pathBuilder().addPath(
                             new BezierCurve(
-                                    new Pose(48.000, 96.000),
-                                    new Pose(54.022, 55.831),
-                                    new Pose(14.254, 59.254)
+                                    new Pose(38.000, 108.000),
+                                    new Pose(88.000, 55.000),
+                                    new Pose(9.000, 59.500)
                             )
-                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    ).setConstantHeadingInterpolation(Math.toRadians(180))
+
                     .build();
 
             Shoot2 = follower.pathBuilder().addPath(
-                            new BezierLine(
-                                    new Pose(14.254, 59.254),
-                                    new Pose(48.000, 96.000)
+                            new BezierCurve(
+                                    new Pose(9.000, 59.500),
+                                    new Pose(61.000, 52.000),
+                                    new Pose(38.000, 108.000)
                             )
-                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
-                    .build();
+                    ).setConstantHeadingInterpolation(Math.toRadians(180))
 
-            // ------------------------------------------------------------
-            // You MUST replace these two with your actual visualizer-exported points.
-            // I’m putting safe placeholders that continue from Shoot2 end (48,96).
-            // ------------------------------------------------------------
+                    .build();
 
             Pickup3 = follower.pathBuilder().addPath(
                             new BezierCurve(
-                                    new Pose(48.000, 96.000),
-                                    new Pose(55.000, 40.000),
-                                    new Pose(10.000, 40.000)
+                                    new Pose(38.000, 108.000),
+                                    new Pose(86.000, 27.500),
+                                    new Pose(9.000, 35.500)
                             )
-                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    ).setConstantHeadingInterpolation(Math.toRadians(180))
+
                     .build();
 
             Shoot3 = follower.pathBuilder().addPath(
                             new BezierLine(
-                                    new Pose(10.000, 40.000),
-                                    new Pose(48.000, 96.000)
+                                    new Pose(9.000, 35.500),
+
+                                    new Pose(38.000, 108.000)
                             )
-                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    ).setConstantHeadingInterpolation(Math.toRadians(180))
+
                     .build();
 
             Park = follower.pathBuilder().addPath(
                             new BezierLine(
-                                    new Pose(48.000, 96.000),
-                                    new Pose(38.564, 33.525)
+                                    new Pose(38.000, 108.000),
+
+                                    new Pose(38.000, 130.000)
                             )
-                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    ).setConstantHeadingInterpolation(Math.toRadians(180))
+
                     .build();
         }
     }
+
 }
