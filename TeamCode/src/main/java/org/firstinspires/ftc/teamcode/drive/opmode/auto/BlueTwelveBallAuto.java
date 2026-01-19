@@ -293,7 +293,7 @@ public class BlueTwelveBallAuto extends OpMode {
             // 7) After overflow, shoot2
             // ------------------------------------------------------------
             case 7:
-                if (!follower.isBusy()) {
+                if (!follower.isBusy() && stateTimer.milliseconds() > 2000) {
                     follower.followPath(paths.Shoot2);
                     setState(8);
                 }
