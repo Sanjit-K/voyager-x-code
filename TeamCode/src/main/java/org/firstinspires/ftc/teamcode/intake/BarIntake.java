@@ -1,15 +1,16 @@
 package org.firstinspires.ftc.teamcode.intake;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 public class BarIntake {
-    private DcMotor motor;
-    private double power = 0.95;
+    private DcMotorEx motor;
+    private double power = 1;
 
     public BarIntake(HardwareMap hardwareMap, String name, boolean reversed) {
-        motor = hardwareMap.get(DcMotor.class, name);
+        motor = hardwareMap.get(DcMotorEx.class, name);
         if (reversed) {
             motor.setDirection(DcMotorSimple.Direction.REVERSE);
         } else {
@@ -31,7 +32,7 @@ public class BarIntake {
     }
 
     public void spinOuttake() {
-        motor.setPower(-0.67);
+        motor.setPower(-power);
     }
     public void spinOuttake(double outtakePower) {
         motor.setPower(-outtakePower);

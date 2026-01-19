@@ -9,760 +9,471 @@ import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
-import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
-import com.qualcomm.robotcore.hardware.DigitalChannel;
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.util.ElapsedTime;
-import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
-import org.firstinspires.ftc.vision.VisionPortal;
-import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
-import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
-import java.util.List;
+
 import org.firstinspires.ftc.teamcode.intake.BarIntake;
-import org.firstinspires.ftc.teamcode.intake.IntakeFlap;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
-import org.firstinspires.ftc.teamcode.shooting.KickerServo;
-import org.firstinspires.ftc.teamcode.shooting.Shooter;
+import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
+import org.firstinspires.ftc.teamcode.shooting.KickerServo;
+import org.firstinspires.ftc.teamcode.shooting.Turret;
 
-@Autonomous(name = "Blue Auto", group = "Opmode")
+@Autonomous(name = "Blue Auto", group = "Autonomous")
 @Configurable
-@SuppressWarnings("FieldCanBeLocal")
-public class BlueAuto extends LinearOpMode {
+public class BlueAuto extends OpMode {
 
-    // Timer
-    private final ElapsedTime runtime = new ElapsedTime();
-
-    // Pedro / telemetry
-    private Follower follower;
-    private Pose currentPose;
+    // Panels + Pedro
     private TelemetryManager panelsTelemetry;
-    private int lastShootIndex = -1;
-
-
-    // Robot subsystems
-    private BarIntake intake;
-    private Shooter shooter;
-    private KickerServo kickerServo;
-    private Spindexer spindexer;
-    private IntakeFlap intakeFlap;
-    private DigitalChannel distanceSensor;
-
-    // Paths holder
+    public Follower follower;
     private Paths paths;
 
-    // Path state machine
+    // Subsystems (match TeleOp logic)
+    private BarIntake barIntake;
+    private ColorSensor colorSensor;
+    private Spindexer spindexer;
+    private KickerServo kickerServo;
+    double targetAngle = 308;
+    private Turret turret;
+
+    // State machine
     private int pathState = 0;
 
-    // 3-shot volley state
-    private boolean threeShotActive = false;
-    private final ElapsedTime threeShotTimer = new ElapsedTime();
-    private static final int SHOOT_DELAY = 450;
-    private static final int KICK_DELAY = 250;
-    private static final int NORMAL_DELAY = 200;
-    private static final int FULL_CYCLE = SHOOT_DELAY + KICK_DELAY + NORMAL_DELAY;
+    // Outtake routine (ported from TeleOp)
+    private final ElapsedTime outtakeTimer = new ElapsedTime();
+    private boolean outtakeInProgress = false;
+    private int outtakeAdvanceCount = 0;
+    private double lastAdvanceTimeMs = 0.0;
+    private double OUTTAKE_DELAY_MS = 650.0;
 
-    private int volleyStep = 0;
-    private final ElapsedTime volleyStepTimer = new ElapsedTime();
+    // RPM (ported from TeleOp distance->rpm)
+    private double currentRPM = 2210;
 
-    private String shootIndexHistory = "";
+    private final ElapsedTime stateTimer = new ElapsedTime();
+    private int lastState = -1;
 
-
-    // -------- AprilTag motif detection --------
-    private static final int TAG_GPP = 21;
-    private static final int TAG_PGP = 22;
-    private static final int TAG_PPG = 23;
-
-    private VisionPortal visionPortal;
-    private AprilTagProcessor aprilTag;
-
-
-    // Per-volley shoot orders: which spindex slots to fire in which order
-    // 0 = preset, 1 = first cycle, 2 = second cycle, 3 = third cycle
-    // Motif type
-    private enum Motif {
-        GPP, PGP, PPG
-    }
-
-    private void setShootIndexOnce(int index) {
-        if (lastShootIndex != index) {
-            spindexer.setShootIndex(index);
-            lastShootIndex = index;
-
-            // Append to history (keep it short)
-            shootIndexHistory += " → " + index;
-            if (shootIndexHistory.length() > 40) {
-                shootIndexHistory = shootIndexHistory.substring(
-                        shootIndexHistory.length() - 40
-                );
-            }
-
-            telemetry.addData("ShootIndex Cmd", index);
-            telemetry.addData("ShootIndex Seq", shootIndexHistory);
+    private void setState(int s) {
+        if (s != lastState) {
+            lastState = s;
+            stateTimer.reset();
         }
+        pathState = s;
     }
-
-
-
-    // TODO: get from webcam
-    private Motif motif = Motif.GPP;  // default
-
-    // volleyOrdersByMotif[motif][volleyIndex][ball#]
-    // Fill these with whatever orders you want for each motif.
-    // Example values here: GPP matches what you specified earlier.
-    private final int[][][] volleyOrdersByMotif = new int[][][]{
-            // motif 0: GPP
-            {
-                    {2, 0, 1}, // preset
-                    {2, 0, 1}, // first
-                    {1, 0, 2}, // second
-                    {0, 1, 2}  // third
-            },
-            // motif 1: PGP  (placeholder, change to what you want)
-            {
-                    {0, 2, 1},
-                    {0, 2, 1},
-                    {0, 1, 2},
-                    {2, 0, 1}
-            },
-            // motif 2: PPG  (placeholder, change to what you want)
-            {
-                    {0, 1, 2},
-                    {0, 1, 2},
-                    {2, 0, 1},
-                    {0, 1, 2}
-            }
-    };
-
-    private void initAprilTag() {
-        aprilTag = new AprilTagProcessor.Builder().build();
-        aprilTag.setDecimation(2);
-
-        visionPortal = new VisionPortal.Builder()
-                .setCamera(hardwareMap.get(WebcamName.class, "webcam"))
-                .addProcessor(aprilTag)
-                .build();
-    }
-
-
-
-
-    // Active orders for the current motif
-    private int[][] volleyOrders;      // [volleyIndex][ball# 0..2]
-    private int currentVolley = 0;
-
-    private final double SLOW_DOWN = 0.2;
-
-
-
-    private int intakeIndex = 0;
-    private boolean rightPos = false;
-    private boolean spindexAllowed = false;
-
-    // Auto intake / spindexer detection (ported from TeleOp)
-    private boolean detected = false;
-    private final ElapsedTime detectedTimer = new ElapsedTime();
-    private static final int DETECTED_DELAY = 300;
-    private String colorLog;
-    private boolean motifLocked = false;
-
-
-    // Logging
-    private void log(String caption, Object... text) {
-        if (text.length == 1) {
-            telemetry.addData(caption, text[0]);
-            panelsTelemetry.debug(caption + ": " + text[0]);
-        } else if (text.length >= 2) {
-            StringBuilder message = new StringBuilder();
-            for (int i = 0; i < text.length; i++) {
-                message.append(text[i]);
-                if (i < text.length - 1) message.append(" ");
-            }
-            telemetry.addData(caption, message.toString());
-            panelsTelemetry.debug(caption + ": " + message);
-        }
-    }
-
-    private void scanMotifAtShoot() {
-        if (motifLocked || aprilTag == null) return;
-
-        List<AprilTagDetection> detections = aprilTag.getDetections();
-
-        for (AprilTagDetection det : detections) {
-            if (det.metadata == null) continue;
-
-            switch (det.id) {
-                case TAG_GPP:
-                    motif = Motif.GPP;
-                    break;
-                case TAG_PGP:
-                    motif = Motif.PGP;
-                    break;
-                case TAG_PPG:
-                    motif = Motif.PPG;
-                    break;
-                default:
-                    continue;
-            }
-
-            // Apply motif
-            volleyOrders = volleyOrdersByMotif[motif.ordinal()];
-            motifLocked = true;
-
-            telemetry.addData("Motif Locked", motif);
-            telemetry.update();
-
-            // Shut down camera
-            if (visionPortal != null) {
-                visionPortal.close();
-                visionPortal = null;
-            }
-
-            break;
-        }
-    }
-
 
     @Override
-    public void runOpMode() {
-
-        // ---------- Panels + Pedro ----------
+    public void init() {
         panelsTelemetry = PanelsTelemetry.INSTANCE.getTelemetry();
+
         follower = Constants.createFollower(hardwareMap);
 
-        // Start pose = first point of shootpreset path
-        follower.setStartingPose(new Pose(22, 121, Math.toRadians(315)));
+        // Use the FIRST pose of shoot1 as the starting pose (most important)
+        Pose startPose = new Pose(22.55, 123.14, Math.toRadians(180));
+        follower.setStartingPose(startPose);
 
-        // ---------- Subsystems ----------
-        intake = new BarIntake(hardwareMap, "intakeMotor", false);
-        shooter = new Shooter(hardwareMap, "shooterMotor", false);
+        // Subsystems (use the same device names as TeleOp)
+        barIntake = new BarIntake(hardwareMap, "barIntake", true);
+        colorSensor = new ColorSensor(hardwareMap, "colorSensor");
+        spindexer = new Spindexer(
+                hardwareMap,
+                "spindexerMotor",
+                "spindexerAnalog",
+                "distanceSensor",
+                colorSensor
+        );
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
-        spindexer = new Spindexer(hardwareMap, "spindexer");
-        intakeFlap = new IntakeFlap(hardwareMap, "intakeFlapServo");
+        turret = new Turret(
+                hardwareMap,
+                "shooter",
+                "turret",
+                "turretEncoder",
+                "transferMotor",
+                false,
+                true,
+                true,
+                308
+        );
 
-        distanceSensor = hardwareMap.get(DigitalChannel.class, "distanceSensor");
-        distanceSensor.setMode(DigitalChannel.Mode.INPUT);
-
-        // ---------- Basic startup config ----------
-        spindexer.setShootIndex(0);
-        kickerServo.normal();
-        shooter.setPower(0.82);
-        shooter.off();
-        intake.stop();
-        intakeFlap.off();
-
-        // ---------- Default motif until locked ----------
-        motif = Motif.GPP;
-        volleyOrders = volleyOrdersByMotif[motif.ordinal()];
-
-        telemetry.addData("Motif (default)", motif);
-        telemetry.update();
-
-        // ---------- Build paths ----------
+        // Paths
         paths = new Paths(follower);
 
-        log("Status", "Initialized");
-        telemetry.update();
+        // Startup config similar to TeleOp behavior
+        kickerServo.normal();
+        //turret.on();
+        //barIntake.spinIntake();
 
-        // ---------- WAIT FOR START ----------
-        waitForStart();
-        if (isStopRequested()) return;
+        panelsTelemetry.debug("Status", "Initialized");
+        panelsTelemetry.update(telemetry);
+    }
 
-        // ---------- Start camera AFTER start ----------
-        initAprilTag();
+    @Override
+    public void start() {
+        // Ensure shooter/intake on at start
+        turret.on();
+        barIntake.spinIntake();
+        turret.transferOn();
+        // In start(), replace: pathState = 0;
+        setState(0);
+        outtakeInProgress = false;
+    }
 
-        // ---------- Reset timers / state ----------
-        runtime.reset();
-        threeShotTimer.reset();
-        detectedTimer.reset();
-        setPathState(0);
+    @Override
+    public void loop() {
+        // Update follower first
+        follower.update();
 
-        // ---------- Main loop ----------
-        while (opModeIsActive()) {
+        // Keep turret aimed + RPM updated (so by the time you arrive, you're close)
+        //updateShooterRPMFromDistance();
+        turret.setShooterRPM(currentRPM);
 
-            shooter.on();
-            intake.spinIntake();
-            follower.update();
-            panelsTelemetry.update();
-            currentPose = follower.getPose();
 
-            // -------- automatic advancing spindexer logic --------
-            detected = distanceSensor.getState();
-
-            if (detected
-                    && !spindexer.isFull()
-                    && detectedTimer.milliseconds() > DETECTED_DELAY
-                    && spindexAllowed
-                    && !threeShotActive
-                    && pathState != 1) {
-
-                spindexer.setColorAtPos('#');
-
-                if (!spindexer.isFull()) {
-                    spindexer.advanceIntake();
-                    rightPos = false;
-                } else {
-                    setShootIndexOnce(2);
-                }
-
-                detectedTimer.reset();
-            }
-            // -----------------------------------------------------
-
-            updateStateMachine();
-
-            log("Elapsed", runtime.toString());
-            log("X", currentPose.getX());
-            log("Y", currentPose.getY());
-            log("Heading", currentPose.getHeading());
-            log("ShootIndex Seq", shootIndexHistory);
-            log("motif", motif);
-            telemetry.update();
+        // While in a "shoot" stage, keep tracking target (safe to call always)
+        //turret.trackTarget(follower.getPose(), targetPose);
+        turret.goToPosition(targetAngle);
+        turret.on();
+        // Spindexer continuous update
+        spindexer.update();
+        if (!outtakeInProgress && spindexer.isFull()) {
+            barIntake.stop();
         }
+
+
+        // Run the autonomous state machine
+        autonomousPathUpdate();
+
+        // Telemetry
+        panelsTelemetry.debug("Path State", pathState);
+        panelsTelemetry.debug("X", follower.getPose().getX());
+        panelsTelemetry.debug("Y", follower.getPose().getY());
+        panelsTelemetry.debug("Heading", follower.getPose().getHeading());
+        panelsTelemetry.debug("Target RPM", currentRPM);
+        panelsTelemetry.debug("Outtake", outtakeInProgress);
+        panelsTelemetry.update(telemetry);
     }
 
-    // -------- 3-shot volley logic --------
-
-    private void startThreeShotVolley(int volleyIndex) {
-        intakeFlap.on();
-        currentVolley = volleyIndex;
-        spindexAllowed = false;
-        threeShotActive = true;
-
-        lastShootIndex = -1;
-
-        volleyStep = 0;
-        volleyStepTimer.reset();
-        threeShotTimer.reset(); // optional, can remove if not used elsewhere
-    }
 
 
+    // -------------------- Outtake routine (TeleOp -> Auto) --------------------
 
+    private void startOuttakeRoutine() {
+        outtakeInProgress = true;
+        outtakeAdvanceCount = 0;
+        outtakeTimer.reset();
+        lastAdvanceTimeMs = 0.0;
 
-    private void kickAndClearIndex(int index) {
-        spindexer.setColorAtPos('_', index);
+        // Kick
         kickerServo.kick();
+
+        // First advance immediately
+        spindexer.advanceIntake();
+        outtakeAdvanceCount++;
+        lastAdvanceTimeMs = outtakeTimer.milliseconds();
     }
 
-    private boolean updateThreeShotVolley() {
-        if (!threeShotActive) return true;
+    private void handleOuttakeRoutine() {
+        double now = outtakeTimer.milliseconds();
 
-        int[] order = volleyOrders[currentVolley];
-        int firstSlot  = order[0];
-        int secondSlot = order[1];
-        int thirdSlot  = order[2];
-
-        spindexAllowed = false;
-        intake.spinOuttake(0.3);
-
-        double t = volleyStepTimer.milliseconds();
-
-        switch (volleyStep) {
-
-            // ----- Ball 1 -----
-            case 0: // setShootIndex phase
-                setShootIndexOnce(firstSlot);
-                if (t >= SHOOT_DELAY) {
-                    volleyStep = 1;
-                    volleyStepTimer.reset();
-                }
-                break;
-
-            case 1: // kick phase
-                kickAndClearIndex(firstSlot);
-                if (t >= KICK_DELAY) {
-                    volleyStep = 2;
-                    volleyStepTimer.reset();
-                }
-                break;
-
-            case 2: // normal phase
-                kickerServo.normal();
-                if (t >= NORMAL_DELAY) {
-                    volleyStep = 3;
-                    volleyStepTimer.reset();
-                }
-                break;
-
-            // ----- Ball 2 -----
-            case 3: // setShootIndex phase
-                setShootIndexOnce(secondSlot);
-                if (t >= SHOOT_DELAY) {
-                    volleyStep = 4;
-                    volleyStepTimer.reset();
-                }
-                break;
-
-            case 4: // kick phase
-                kickAndClearIndex(secondSlot);
-                if (t >= KICK_DELAY) {
-                    volleyStep = 5;
-                    volleyStepTimer.reset();
-                }
-                break;
-
-            case 5: // normal phase
-                kickerServo.normal();
-                if (t >= NORMAL_DELAY) {
-                    volleyStep = 6;
-                    volleyStepTimer.reset();
-                }
-                break;
-
-            // ----- Ball 3 -----
-            case 6: // setShootIndex phase
-                setShootIndexOnce(thirdSlot);
-                if (t >= SHOOT_DELAY) {
-                    volleyStep = 7;
-                    volleyStepTimer.reset();
-                }
-                break;
-
-            case 7: // kick phase
-                kickAndClearIndex(thirdSlot);
-                if (t >= KICK_DELAY) {
-                    volleyStep = 8;
-                    volleyStepTimer.reset();
-                }
-                break;
-
-            case 8: // normal phase
-                kickerServo.normal();
-                if (t >= NORMAL_DELAY) {
-                    volleyStep = 9;
-                    volleyStepTimer.reset();
-                }
-                break;
-
-            // ----- Done -----
-            case 9:
-                intakeIndex = 0;
-                intake.spinIntake();
-                intakeFlap.off();
-                spindexer.setIntakeIndex(intakeIndex);
-                threeShotActive = false;
-                rightPos = false;
-                return true;
+        if (outtakeAdvanceCount < 3) {
+            if (now - lastAdvanceTimeMs >= OUTTAKE_DELAY_MS) {
+                spindexer.advanceIntake();
+                outtakeAdvanceCount++;
+                lastAdvanceTimeMs = now;
+            }
+            return;
         }
 
-        return false;
+        // After the 3 advances, wait one more delay then finish
+        if (now - lastAdvanceTimeMs >= OUTTAKE_DELAY_MS) {
+            kickerServo.normal();
+            spindexer.clearTracking();
+            barIntake.spinIntake();
+            outtakeInProgress = false;
+        }
     }
 
+    // -------------------- State machine --------------------
 
-
-
-    // -------- path state machine (unchanged logic, uses threeShotActive) --------
-
-    private void updateStateMachine() {
-        // Handle volley first
-        boolean volleyFinishedThisLoop = false;
-        if (threeShotActive) {
-            volleyFinishedThisLoop = updateThreeShotVolley();
-            if (!volleyFinishedThisLoop) {
-                // still shooting, do nothing else this loop
-                return;
-            }
-            // if finished, threeShotActive is now false and we fall through
+    public void autonomousPathUpdate() {
+        // If we are currently outtaking, that blocks path transitions.
+        if (outtakeInProgress) {
+            handleOuttakeRoutine();
+            return;
         }
 
         switch (pathState) {
+
+            // -------- shoot1 -> outtake -> pickupPreset1 --------
             case 0:
-                follower.followPath(paths.shootpreset);
-                setPathState(1);
+                follower.followPath(paths.shoot1);
+                setState(1);
                 break;
 
-            case 1: // preset volley (shoot position 1)
+            case 1: // end of shoot1: do outtake, then go next
                 if (!follower.isBusy()) {
-
-                    // Scan AprilTag while stationary and aiming
-                    scanMotifAtShoot();
-
-                    // 🚨 HARD BLOCK: do NOT shoot until motif is locked
-                    if (!motifLocked && !(runtime.milliseconds() > 2500)) {
-                        return; // stay here, keep scanning
-                    }
-
-                    // Once motif is locked, allow first volley
-                    if (!volleyFinishedThisLoop) {
-                        startThreeShotVolley(0);
-                        return;
-                    } else {
-                        spindexAllowed = true;
-                        follower.followPath(paths.preparepickup1);
-                        setPathState(2);
-                    }
+                        startOuttakeRoutine();
+                        setState(2);
                 }
                 break;
 
-            case 2:
-                if (!follower.isBusy()) {
-                    follower.followPath(paths.pickup1, SLOW_DOWN, false);
-                    setPathState(3);
+            case 2: // after outtake completes, start pickupPreset1
+                if (!outtakeInProgress) {
+                    follower.followPath(paths.pickupPreset1);
+                    currentRPM = 2580;
+                    targetAngle = 308;
+                    setState(3);
                 }
                 break;
 
+            // -------- shoot2 -> outtake -> gateIntake1 --------
             case 3:
-                setPathState(4);
-                break;
-
-            case 4:
-                if (!follower.isBusy()) {
-                    follower.followPath(paths.shoot1);
-                    setPathState(5);
-                }
-                break;
-
-            case 5: // volley after first pickup/gate
-                if (!follower.isBusy()) {
-                    if (!volleyFinishedThisLoop) {
-                        startThreeShotVolley(1);
-                        return;
-                    } else {
-                        spindexAllowed = true;
-                        intake.spinIntake();
-                        follower.followPath(paths.preparepickup2);
-                        setPathState(6);
-                    }
-                }
-                break;
-
-            case 6:
-                if (!follower.isBusy()) {
-                    follower.followPath(paths.pickup2, SLOW_DOWN, false);
-                    setPathState(7);
-                }
-                break;
-
-            case 7:
                 if (!follower.isBusy()) {
                     follower.followPath(paths.shoot2);
-                    setPathState(8);
+                    setState(4);
                 }
                 break;
 
-            case 8: // volley after second pickup
+            case 4: // end of shoot2
                 if (!follower.isBusy()) {
-                    if (!volleyFinishedThisLoop) {
-                        startThreeShotVolley(2);
+                    startOuttakeRoutine();
+                    setState(5);
+                }
+                break;
+
+            case 5:
+                if (!outtakeInProgress) {
+                    follower.followPath(paths.gateIntake1);
+                    setState(6);
+                }
+                break;
+
+            // -------- shoot3 -> outtake -> gateIntake2 --------
+            case 6:
+                if (!follower.isBusy()) {
+                    if (stateTimer.milliseconds() == 0) stateTimer.reset(); // (better: use a dedicated timer)
+                    if (stateTimer.milliseconds() < 3000) {
+                        // wait 3 seconds
                         return;
-                    } else {
-                        spindexAllowed = true;
-                        follower.followPath(paths.preparepickup3);
-                        setPathState(9);
                     }
-                }
-                break;
-
-            case 9:
-                if (!follower.isBusy()) {
-                    follower.followPath(paths.pickup3, SLOW_DOWN, false);
-                    setPathState(10);
-                }
-                break;
-
-            case 10:
-                if (!follower.isBusy()) {
                     follower.followPath(paths.shoot3);
-                    setPathState(11);
+                    setState(7);
                 }
                 break;
 
-            case 11: // final volley
+            case 7: // end of shoot3
                 if (!follower.isBusy()) {
-                    if (!volleyFinishedThisLoop) {
-                        startThreeShotVolley(3);
-                        return;
-                    } else {
-                        setPathState(12);
-                    }
+                    startOuttakeRoutine();
+                    setState(11);
                 }
                 break;
 
+//            case 8:
+//                if (!outtakeInProgress) {
+//                    follower.followPath(paths.gateIntake2);
+//                    setState(9);
+//                }
+//                break;
+//
+//            // -------- shoot4 -> outtake -> pickupPreset2 --------
+//            case 9:
+//                if (!follower.isBusy()) {
+//                    follower.followPath(paths.shoot4);
+//                    setState(10);
+//                }
+//                break;
+//
+//            case 10: // end of shoot4
+//                if (!follower.isBusy()) {
+//                    startOuttakeRoutine();
+//                    setState(11);
+//                }
+//                break;
+
+            case 11:
+                if (!outtakeInProgress) {
+                    currentRPM = 2010.7;
+                    targetAngle = 296;
+                    follower.followPath(paths.pickupPreset2, 0.7, false);
+                    setState(12);
+                }
+                break;
+
+            // -------- shoot5 -> outtake -> pickupPreset3 --------
             case 12:
                 if (!follower.isBusy()) {
-                    follower.followPath(paths.ending);
-                    setPathState(13);
+                    follower.followPath(paths.shoot5);
+                    setState(13);
                 }
                 break;
+
+            case 13: // end of shoot5
+                if (!follower.isBusy()) {
+                    startOuttakeRoutine();
+                    setState(14);
+                }
+                break;
+
+            case 14:
+                if (!outtakeInProgress) {
+                    follower.followPath(paths.pickupPreset3, 0.9, false);
+                    currentRPM = 3250;
+                    targetAngle = 287;
+                    OUTTAKE_DELAY_MS = 700;
+
+                    setState(15);
+                }
+                break;
+
+            // -------- shoot6 -> outtake -> done --------
+            case 15:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.shoot6);
+                    setState(16);
+                }
+                break;
+
+            case 16: // end of shoot6
+                if (!follower.isBusy()) {
+                    startOuttakeRoutine();
+                    setState(17);
+                }
+                break;
+
+            case 17:
+                if (!outtakeInProgress) {
+                    // Done. Stay here.
+                    setState(18);
+                }
+                break;
+
+            case 18:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.leave, 0.5, true);
+                    setState(18);
+                }
+                break;
+
         }
     }
 
-
-
-    private void setPathState(int newState) {
-        pathState = newState;
-        runtime.reset();
-    }
-
-    // -------- Paths class (unchanged) --------
+    // -------------------- Paths (your new pathing) --------------------
 
     public static class Paths {
-
-        public PathChain shootpreset;
-        public PathChain preparepickup1;
-        public PathChain pickup1;
-        public PathChain overflow;
         public PathChain shoot1;
-        public PathChain preparepickup2;
-        public PathChain pickup2;
+        public PathChain pickupPreset1;
         public PathChain shoot2;
-        public PathChain preparepickup3;
-        public PathChain pickup3;
+        public PathChain gateIntake1;
         public PathChain shoot3;
-        public PathChain ending;
+        public PathChain gateIntake2;
+        public PathChain shoot4;
+        public PathChain pickupPreset2;
+        public PathChain shoot5;
+        public PathChain pickupPreset3;
+        public PathChain shoot6;
+
+        public PathChain leave;
 
         public Paths(Follower follower) {
-
-            // === shootpreset = line1 ===
-            shootpreset = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(
-                                    new Pose(22.000, 121.000),
-                                    new Pose(48.000, 96.000)
-                            )
-                    )
-                    .setLinearHeadingInterpolation(Math.toRadians(315), Math.toRadians(313))
+            shoot1 = follower.pathBuilder()
+                    .addPath(new BezierLine(
+                            new Pose(22.55, 123.14),
+                            new Pose(46.571, 96.857)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
 
-            // === preparepickup1 = line2 ===
-            preparepickup1 = follower
-                    .pathBuilder()
-                    .addPath(
+            pickupPreset1 = follower.pathBuilder().addPath(
                             new BezierCurve(
-                                    new Pose(48.000, 96.000),
-                                    new Pose(61.300, 86.100),
-                                    new Pose(45.000, 84.500)
+                                    new Pose(46.571, 96.857),
+                                    new Pose(57.529, 39.600),
+                                    new Pose(45.343, 66.543),
+                                    new Pose(17, 61.200)
                             )
-                    )
-                    .setLinearHeadingInterpolation(Math.toRadians(313), Math.toRadians(180))
+                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
 
-            // === pickup1 = line3 ===
-            pickup1 = follower
-                    .pathBuilder()
-                    .addPath(
+            shoot2 = follower.pathBuilder().addPath(
                             new BezierLine(
-                                    new Pose(45.000, 84.500),
-                                    new Pose(28.000, 84.500)
+                                    new Pose(17, 61.200),
+                                    new Pose(62.129, 75.457)
                             )
-                    )
-                    .setConstantHeadingInterpolation(Math.toRadians(180))
+                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+
                     .build();
 
-            // === overflow = line4 (BezierCurve) ===
-            overflow = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierCurve(
-                                    new Pose(24.000, 84.500),
-                                    new Pose(28.000, 80.000),
-                                    new Pose(16.000, 73.500)
-                            )
-                    )
-                    .setConstantHeadingInterpolation(Math.toRadians(180))
+            gateIntake1 = follower.pathBuilder()
+                    .addPath(new BezierLine(
+                            new Pose(62.129, 75.457),
+                            new Pose(11.553, 62.059)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(147.6))
                     .build();
 
-            // === shoot1 = line5 ===
-            shoot1 = follower
-                    .pathBuilder()
-                    .addPath(
+            shoot3 = follower.pathBuilder()
+                    .addPath(new BezierLine(
+                            new Pose(11.553, 62.059),
+                            new Pose(62.129, 75.457)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(147.6), Math.toRadians(180))
+                    .build();
+
+            gateIntake2 = follower.pathBuilder()
+                    .addPath(new BezierLine(
+                            new Pose(62.129, 75.457),
+                            new Pose(12.629, 61.029)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(152))
+                    .build();
+
+            shoot4 = follower.pathBuilder()
+                    .addPath(new BezierLine(
+                            new Pose(12.629, 61.029),
+                            new Pose(60.971, 76)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(152), Math.toRadians(180))
+                    .build();
+
+            pickupPreset2 = follower.pathBuilder()
+                    .addPath(new BezierCurve(
+                            new Pose(60.971, 76),
+                            new Pose(55.47, 88.700),
+                            new Pose(13.571, 86.657)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    .build();
+
+            shoot5 = follower.pathBuilder()
+                    .addPath(new BezierLine(
+                            new Pose(13.571, 86.657),
+                            new Pose(31.314, 101.686)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    .build();
+
+            pickupPreset3 = follower.pathBuilder()
+                    .addPath(new BezierCurve(
+                            new Pose(31.314, 101.686),
+                            new Pose(73.057, 31.586),
+                            new Pose(10, 35.714)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    .build();
+
+            shoot6 = follower.pathBuilder()
+                    .addPath(new BezierCurve(
+                            new Pose(10, 35.714),
+                            new Pose(59.457, 33.029),
+                            new Pose(61.600, 14.69)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    .build();
+
+            leave = follower.pathBuilder().addPath(
                             new BezierLine(
-                                    new Pose(28.000, 84.500),
-                                    new Pose(48.000, 96.000)
+                                    new Pose(61.600, 14.69),
+                                    new Pose(61.60, 37.0)
                             )
-                    )
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(313))
-                    .build();
-
-            // === preparepickup2 = Path6 (BezierCurve) ===
-            preparepickup2 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierCurve(
-                                    new Pose(48.000, 96.000),
-                                    new Pose(64.958, 60.029),
-                                    new Pose(44, 60)
-                            )
-                    )
-                    .setLinearHeadingInterpolation(Math.toRadians(313), Math.toRadians(180))
-                    .build();
-
-            // === pickup2 = line7 ===
-            pickup2 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(
-                                    new Pose(44, 60),
-                                    new Pose(28.000, 60)
-                            )
-                    )
-                    .setConstantHeadingInterpolation(Math.toRadians(180))
-                    .build();
-
-            // === shoot2 = line8 ===
-            shoot2 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(
-                                    new Pose(28.000, 60),
-                                    new Pose(48.000, 96.000)
-                            )
-                    )
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(313))
-                    .build();
-
-            // === preparepickup3 = Path9 (BezierCurve) ===
-            preparepickup3 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierCurve(
-                                    new Pose(48.000, 96.000),
-                                    new Pose(79.746, 31.863),
-                                    new Pose(44.000, 40)
-                            )
-                    )
-                    .setLinearHeadingInterpolation(Math.toRadians(313), Math.toRadians(180))
-                    .build();
-
-            // === pickup3 = line10 ===
-            pickup3 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(
-                                    new Pose(44.000, 40),
-                                    new Pose(28.000, 40)
-                            )
-                    )
-                    .setConstantHeadingInterpolation(Math.toRadians(180))
-                    .build();
-
-            // === shoot3 = line11 ===
-            shoot3 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(
-                                    new Pose(28.000, 40),
-                                    new Pose(48.000, 96.000)
-                            )
-                    )
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(313))
-                    .build();
-
-            // === ending = Path12 ===
-            ending = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(
-                                    new Pose(48.000, 96.000),
-                                    new Pose(48, 70)
-                            )
-                    )
-                    .setConstantHeadingInterpolation(Math.toRadians(313))
+                    ).setTangentHeadingInterpolation()
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
         }
     }
-
-
-
-
 }

@@ -1,338 +1,287 @@
 package org.firstinspires.ftc.teamcode.drive.opmode.teleop;
 
-import com.bylazar.configurables.annotations.Configurable;
-import com.bylazar.telemetry.PanelsTelemetry;
-import com.bylazar.telemetry.TelemetryManager;
 import com.pedropathing.follower.Follower;
-import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
-import com.pedropathing.paths.PathChain;
+import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-
-import org.firstinspires.ftc.robotcontroller.external.samples.SensorTouch;
 import org.firstinspires.ftc.teamcode.drive.opmode.teleop.functions.LockMode;
 import org.firstinspires.ftc.teamcode.intake.BarIntake;
-import org.firstinspires.ftc.teamcode.intake.IntakeFlap;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.firstinspires.ftc.teamcode.shooting.KickerServo;
-import org.firstinspires.ftc.teamcode.shooting.Shooter;
-import org.firstinspires.ftc.teamcode.sorting.Spindexer;
+import org.firstinspires.ftc.teamcode.shooting.Turret;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
-import com.qualcomm.robotcore.hardware.DigitalChannel;
+import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 
-
-@Configurable
-@TeleOp
+@TeleOp(name = "Blue TeleOp", group = "TeleOp")
 public class BlueTeleOp extends OpMode {
     private Follower follower;
-    public static Pose startingPose = new Pose(48, 70, Math.toRadians(313));
-    private TelemetryManager telemetryM;
     private LockMode lockMode;
-    private BarIntake intake;
-    private static final double MANUAL_DEADBAND = 0.12; // tune
-
-    private KickerServo kickerServo;
-    private Shooter shooter;
-    private ColorSensor colorSensor;
-    private IntakeFlap intakeFlap;
-    private DigitalChannel distanceSensor;
-
-    private Pose lastRecordedPose = null;
-    private boolean lastLeftStickBtn = false;
-    private boolean lastRightStickBtn = false;
-    ElapsedTime spinOutTimer = new ElapsedTime();
-    private boolean automatedDriveEnabled = false;
-
-    // B button sequence state
-    private boolean bButtonSequenceActive = false;
-    private ElapsedTime bButtonTimer = new ElapsedTime();
-    private static final int OUTTAKE_DURATION = 1000; // 1 second
-
-
-    private Pose copyPose(Pose p) {
-        return new Pose(p.getX(), p.getY(), p.getHeading());
-    }
-
-
-
+    private boolean isLocked = false;
+    private static final Pose startingPose = new Pose(61.60, 37, Math.toRadians(180));
+    private BarIntake barIntake;
     private Spindexer spindexer;
-    private boolean intakeOn = false;
-    private boolean outtakeOn = false;
-    private char detectedColor = '_';
-    private boolean detected = false;
-    private int intakeIndex = 0;
-    private boolean rightPos = false;
 
 
-    // 3-shot auto volley system
-    private boolean threeShotActive = false;
-    private final ElapsedTime threeShotTimer = new ElapsedTime();
-    private final ElapsedTime detectedTimer = new ElapsedTime();
-    private static final int SHOOT_DELAY = 350;
-    private static final int KICK_DELAY = 250;
-    private static final int NORMAL_DELAY = 200;
-    private static final int FULL_CYCLE = SHOOT_DELAY + KICK_DELAY + NORMAL_DELAY;
+    private int offset_turret = 0;
+    private KickerServo kickerServo;
+    private Turret turret;
+    private ColorSensor colorSensor;
+    private ElapsedTime loopTimer;
+    private ElapsedTime outtakeTimer;
+    private LynxModule expansionHub;
+    private static final double OFFSET = Math.toRadians(180.0);
+    private Pose targetPose = new Pose(0, 144, 0); // Fixed target
 
-    private final int DETECTED_DELAY = 300;
+    // Outtake routine state
+    private boolean outtakeInProgress = false;
 
-    private final double offset = Math.toRadians(180.0); // Alliance POV offset: 180 = Blue, 0 = Red
+    boolean rpmCap = true;
+    private boolean singleOuttakeInProgress = false;
+    private boolean singleAtPosition = false;
+    private int outtakeAdvanceCount = 0;
+    private double lastAdvanceTime = 0;
+    private static double OUTTAKE_DELAY_MS = 300;
 
-    /* Debugging stuff */
-    private int detectedCount = 0;
-    private String colorLog;
+    private int spinInterval = 0;
 
 
-    private boolean toggle(boolean currentState, Runnable enableAction, Runnable disableAction) {
-        if (!currentState) enableAction.run(); else disableAction.run();
-        return !currentState;
-    }
-
-    public void kickAndClearIndex(int index) {
-        spindexer.setColorAtPos('_', index);
-        kickerServo.kick();
-    }
+    private double currentRPM = 2500.0;
 
 
     @Override
     public void init() {
+        expansionHub = hardwareMap.get(LynxModule.class, "Expansion Hub 2");
+        expansionHub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
         follower = Constants.createFollower(hardwareMap);
-        telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
         lockMode = new LockMode(follower);
-        intake = new BarIntake(hardwareMap, "intakeMotor", false);
-        kickerServo = new KickerServo(hardwareMap, "kickerServo");
-        shooter = new Shooter(hardwareMap, "shooterMotor", false);
+        barIntake = new BarIntake(hardwareMap, "barIntake", true);
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
-        spindexer = new Spindexer(hardwareMap, "spindexer");
-        intakeFlap = new IntakeFlap(hardwareMap, "intakeFlapServo");
+        spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor);
+        kickerServo = new KickerServo(hardwareMap, "kickerServo");
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, false, 287);
+        loopTimer = new ElapsedTime();
+        outtakeTimer = new ElapsedTime();
 
-        distanceSensor = hardwareMap.get(DigitalChannel.class, "distanceSensor");
-        distanceSensor.setMode(DigitalChannel.Mode.INPUT);
-
-        spindexer.setIntakeIndex(intakeIndex);
-        intakeFlap.off();
         follower.setStartingPose(startingPose);
     }
 
     @Override
-    public void start() {follower.startTeleopDrive();}
+    public void start() {
+        follower.startTeleopDrive();
+        turret.on();
+        barIntake.spinIntake();
+        turret.transferOn();
+    }
 
     @Override
     public void loop() {
+        expansionHub.clearBulkCache();
 
-        // Detect manual input
-        boolean manualInputDetected =
-                Math.abs(gamepad1.left_stick_x) > MANUAL_DEADBAND ||
-                        Math.abs(gamepad1.left_stick_y) > MANUAL_DEADBAND ||
-                        Math.abs(gamepad1.right_stick_x) > MANUAL_DEADBAND ||
-                        gamepad1.left_trigger > 0.15 ||
-                        gamepad1.right_trigger > 0.15;
+        double loopMs = loopTimer.milliseconds();
+        loopTimer.reset();
 
+        // Drive control
         follower.update();
 
-        // --- LockMode control on left trigger > 0.5 ---
-        boolean lockRequested = gamepad1.left_trigger > 0.5;
-        if (lockRequested) {
-            // While held, keep lock mode active
+        if (isLocked) {
             lockMode.lockPosition();
         } else {
-            // When released, ensure we unlock position
             lockMode.unlockPosition();
-        }
-
-        // manual override cancels path (only if not in lock mode)
-        if (manualInputDetected && automatedDriveEnabled) {
-            follower.breakFollowing();      // or whatever your version supports
-            follower.startTeleopDrive();
-            automatedDriveEnabled = false;
-        }
-
-        // path finished -> return to manual
-        if (automatedDriveEnabled && !follower.isBusy()) {
-            follower.startTeleopDrive();
-            automatedDriveEnabled = false;
-        }
-
-        // only one teleop drive call when not locked and not in automated mode
-        if (!automatedDriveEnabled && !lockRequested) {
             follower.setTeleOpDrive(
                     -gamepad1.left_stick_y,
                     -gamepad1.left_stick_x,
                     -gamepad1.right_stick_x,
                     false,
-                    offset
-            );
+                    OFFSET);
         }
 
-        shooter.on();
-
-        // Drive control based on mode
-
-
-
-        detected = distanceSensor.getState();
-
-        // Handle B button sequence with timer
-        if (bButtonSequenceActive) {
-            double elapsedMs = bButtonTimer.milliseconds();
-
-            if (elapsedMs >= OUTTAKE_DURATION) {
-                // After 1 second, switch back to intake
-                intake.spinIntake();
-                intakeOn = true;
-                outtakeOn = false;
-                bButtonSequenceActive = false;
-            }
-            // During the first second, outtake is already running from button press
+        // Field Reset
+        if (gamepad1.startWasPressed()){
+            follower.setPose(new Pose(136.5, 7.75, Math.toRadians(180)));
+            turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, false, turret.getTurretAngle());
         }
 
-        // A button - toggle intake on/off
-        if (gamepad1.aWasPressed()){
-            // Cancel B button sequence if active
-            bButtonSequenceActive = false;
-
-            intakeOn = toggle(intakeOn,
-                    intake::spinIntake,
-                    intake::stop
-            );
-            outtakeOn = false;
+        // Spindex control
+        if (gamepad1.rightBumperWasPressed()) {
+            spindexer.advanceIntake();
+        } else if (gamepad1.leftBumperWasPressed()) {
+            spindexer.retreatIntake();
         }
-        // B button - outtake for 1 second, then intake
-        else if (gamepad1.bWasPressed()){
-            intake.spinOuttake();
-            outtakeOn = true;
-            intakeOn = false;
-            bButtonSequenceActive = true;
-            bButtonTimer.reset();
-        }
-
-
-        if (gamepad1.leftBumperWasPressed()) {
-            threeShotActive = true;
-            intakeFlap.on();
-            threeShotTimer.reset();
-        }
-
-        // --- Record pose on LEFT STICK BUTTON ---
-        boolean leftStickBtn = gamepad1.left_stick_button;
-        if (leftStickBtn && !lastLeftStickBtn) {
-            lastRecordedPose = copyPose(follower.getPose());
-        }
-        lastLeftStickBtn = leftStickBtn;
-
-// --- Go to recorded pose on RIGHT STICK BUTTON ---
-        boolean rightStickBtn = gamepad1.right_stick_button;
-        if (rightStickBtn && !lastRightStickBtn && lastRecordedPose != null) {
-            Pose now = follower.getPose();
-
-            PathChain goToRecorded = follower.pathBuilder()
-                    // start pose is taken from follower::getPose at follow time
-                    .addPath(new BezierLine(follower::getPose, lastRecordedPose))
-                    // end with the recorded heading
-                    .setLinearHeadingInterpolation(now.getHeading(), lastRecordedPose.getHeading())
-                    .build();
-
-            follower.followPath(goToRecorded);
-            automatedDriveEnabled = true; // Enable automated drive mode
-        }
-        lastRightStickBtn = rightStickBtn;
-
-
-        int fd = 0;
-        if (threeShotActive) {
-//            aim at function to aim before shooting
-            // timing for ball shots
-            double t = threeShotTimer.milliseconds();
-            intake.spinOuttake();
-
-            fd = rightPos ? SHOOT_DELAY : 0;
-            // Shooting sequence for ball 1
-            if (t > 0 && t < SHOOT_DELAY - fd) spindexer.setShootIndex(2);
-            if (t > SHOOT_DELAY - fd && t < SHOOT_DELAY + KICK_DELAY - fd)  kickAndClearIndex(2);
-            if (t > SHOOT_DELAY + KICK_DELAY - fd && t < FULL_CYCLE - fd) kickerServo.normal();
-
-            // Shooting sequence for ball 2
-            if (t > FULL_CYCLE - fd && t < FULL_CYCLE + SHOOT_DELAY - fd) spindexer.setShootIndex(0);
-            if (t > FULL_CYCLE + SHOOT_DELAY - fd && t < 2*FULL_CYCLE - NORMAL_DELAY - fd) kickAndClearIndex(0);
-            if (t > 2*FULL_CYCLE - NORMAL_DELAY - fd && t < 2*FULL_CYCLE - fd) kickerServo.normal();
-
-            // Shooting sequence for ball 3
-            if (t > 2*FULL_CYCLE - fd && t < 2*FULL_CYCLE + SHOOT_DELAY - fd) spindexer.setShootIndex(1);
-            if (t > 2*FULL_CYCLE + SHOOT_DELAY - fd&& t < 3*FULL_CYCLE - NORMAL_DELAY - fd) kickAndClearIndex(1);
-            if (t > 3*FULL_CYCLE - NORMAL_DELAY - fd&& t < 3*FULL_CYCLE - fd) kickerServo.normal();
-
-            // turn off shooting sequence
-            if (t > 3*FULL_CYCLE - fd) {
-                intakeIndex = 0;
-                spindexer.setIntakeIndex(intakeIndex);
-                intake.spinIntake();
-                intakeFlap.off();
-                threeShotActive = false;
-                rightPos = false;
-            }
-        }
-
-
 
 
         if (gamepad1.xWasPressed()){
-            kickerServo.kick();
-        }
-        else if (gamepad1.yWasPressed()){
-            kickerServo.normal();
+            spindexer.clearTracking();
+            barIntake.spinIntake();
         }
 
+        // Outtake routine trigger
+        if (gamepad1.left_trigger > 0.5 && !outtakeInProgress) {
+            turret.on();
+            startOuttakeRoutine();
+        }
+
+        if (gamepad1.right_trigger > 0.5) {
+            turret.trackTarget(follower.getPose(), targetPose, offset_turret);
+        } else {
+            turret.setTurretPower(0.0);
+        }
 
 
-        detectedColor = colorSensor.detection();
+        if(gamepad1.dpadDownWasPressed()){
+            rpmCap = !rpmCap;
+            gamepad1.rumble(200);
+        }
 
-        if ((detected && !spindexer.isFull()  &&  detectedTimer.milliseconds() > DETECTED_DELAY) && !threeShotActive){
-            spindexer.setColorAtPos(detectedColor);
-            if (!spindexer.isFull()){
-                spindexer.advanceIntake();
-                rightPos = false;
+        if (!rpmCap){ //if there is NO rpm cap.
+            OUTTAKE_DELAY_MS = 600;
+            offset_turret = -7;
+        }
+        else { //if there IS an RPM cap
+            OUTTAKE_DELAY_MS = 300;
+            offset_turret = 0;
+
+        }
+
+
+        double distance = Math.sqrt((targetPose.getX() - follower.getPose().getX())
+                * (targetPose.getX() - follower.getPose().getX())
+                + (targetPose.getY() - follower.getPose().getY())
+                * (targetPose.getY() - follower.getPose().getY()));
+
+        currentRPM = 0.0151257 * distance * distance
+                + 10.03881 * distance
+                + 1382.4428;
+        currentRPM = (currentRPM > 2700 && rpmCap) ? 2700 : currentRPM;
+        // Update RPM
+        turret.setShooterRPM(currentRPM);
+        turret.on(); // Update velocity
+
+
+        telemetry.addData("Calculated Distance (in)", distance);
+        telemetry.addData("Current target RPM:", currentRPM);
+
+        if (gamepad1.leftStickButtonWasPressed()){
+            startSingleOuttake('P');
+        }
+        if (gamepad1.rightStickButtonWasPressed()){
+            startSingleOuttake('G');
+        }
+        // Handle outtake routine sequence
+        if (outtakeInProgress) {
+            handleOuttakeRoutine();
+        }
+        if (singleOuttakeInProgress){
+            handleSingleOuttake();
+        }
+
+
+        if (spindexer.isFull() && !outtakeInProgress && !singleOuttakeInProgress){
+            spindexer.setShootIndex(1);
+            spinInterval++;
+            if (spinInterval > 40 && spinInterval < 60)
+                barIntake.spinOuttake();
+            else {
+                barIntake.stop();
             }
-            else{
-                intakeFlap.on();
-                spindexer.setShootIndex(2);
-                rightPos = true;
-            }
-            detectedCount++;
-            detectedTimer.reset();
         }
 
-        else if (gamepad1.rightBumperWasPressed()){
-            spindexer.setColorAtPos(detectedColor);
-            spindexer.advanceIntake();
-            intakeFlap.off();
-            rightPos = false;
-            detectedCount++;
-            detectedTimer.reset();
-        }
+        spindexer.update();
 
 
-        if (gamepad2.aWasPressed()){
-            Pose currentPose = follower.getPose();
-            follower.setPose(new Pose(currentPose.getX(), currentPose.getY(), Math.toRadians(180)));
-        }
-
-        // Update telemetry
-        telemetryM.debug("Detected Color: ", detectedColor);
 
 
-        //telemetryM.debug("Detected Object: ", detected);
+        // Spindexer diagnostic telemetry (angle, velocity, adaptive tolerance, output, etc.)
+
+        // Telemetry
+        telemetry.addData("Lock Mode Active", isLocked);
+        telemetry.addData("Spindexer Index", spindexer.getIntakeIndex());
+        telemetry.addData("Robot Pose: ", "(" + follower.getPose().getX() + ", " + follower.getPose().getY() + ", " + follower.getPose().getHeading() + ")" );
+        telemetry.addData("Adaptive Tolerance", String.format(java.util.Locale.US, "%.2f", spindexer.getLastAdaptiveTol()));
+        telemetry.addData("Turret RPM Error", String.format(java.util.Locale.US, "%.1f", turret.getShooterRPM() - turret.getSetShooterRPM()));
+        telemetry.addData("Outtake In Progress", outtakeInProgress);
+        telemetry.addData("Loop Time (ms)", String.format(java.util.Locale.US, "%.2f", loopMs));
         char[] filled = spindexer.getFilled();
-        telemetryM.debug("Detection Log: ", colorLog);
-        telemetryM.debug("Detected Count: ", detectedCount);
-        telemetryM.debug("Spindexer Position: ", spindexer.getPosition());
-        telemetryM.debug("index 0", filled[0]);
-        telemetryM.debug("index 1", filled[1]);
-        telemetryM.debug("index 2", filled[2]);
-        telemetryM.debug("fd", fd);
+        telemetry.addData("Filled Slots", "[" + filled[0] + ", " + filled[1] + ", " + filled[2] + "]");
+        telemetry.update();
+    }
 
-        telemetryM.update(telemetry);
+    private void startOuttakeRoutine() {
+        outtakeInProgress = true;
+        isLocked = true;
+        outtakeAdvanceCount = 0;
+        outtakeTimer.reset();
+        lastAdvanceTime = 0;
+
+
+        // Step 1: Turn on transfer wheel and turret wheel
+        turret.transferOn();
+
+        // Step 2: Set kicker servo to kick
+        kickerServo.kick();
+        lastAdvanceTime = outtakeTimer.milliseconds();
+    }
+
+    private void handleOuttakeRoutine() {
+        double currentTime = outtakeTimer.milliseconds();
+
+        // Check if it's time for the next advanceIntake call
+        if (outtakeAdvanceCount < 2) {
+            if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 2 : OUTTAKE_DELAY_MS)) {
+                spindexer.advanceShoot();
+                outtakeAdvanceCount++;
+                lastAdvanceTime = currentTime;
+            }
+        } else {
+            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS) {
+                // All 3 advanceIntake calls completed, set kicker back to normal
+                kickerServo.normal();
+                spindexer.clearTracking();
+                barIntake.spinIntake();
+                spinInterval = 0;
+                spindexer.setIntakeIndex(0);
+                outtakeInProgress = false;
+                isLocked = false;
+            }
+        }
+    }
+
+    private void startSingleOuttake(char color){
+        int index = -1;
+        char[] filled = spindexer.getFilled();
+        for (int i = 0; i < 3; i++){
+            if (filled[i] == color){
+                index = i;
+                break;
+            }
+        }
+        if (index == -1) return;
+        singleOuttakeInProgress = true;
+        singleAtPosition = false;
+
+        turret.transferOn();
+
+        spindexer.setShootIndex(index);
+    }
+
+    private void handleSingleOuttake(){
+        if (!singleAtPosition) {
+            if (spindexer.isAtTarget(5.0)){
+                singleAtPosition = true;
+                outtakeTimer.reset();
+                kickerServo.kick();
+            }
+        } else {
+            if (outtakeTimer.milliseconds() > OUTTAKE_DELAY_MS){
+                kickerServo.normal();
+                spindexer.setColorAtPos('_', spindexer.getShootIndex());
+                singleOuttakeInProgress = false;
+                if (!spindexer.isFull()) {
+                    barIntake.spinIntake();
+                }
+            }
+        }
     }
 }
