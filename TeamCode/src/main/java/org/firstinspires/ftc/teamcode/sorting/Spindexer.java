@@ -43,7 +43,7 @@ public class Spindexer {
     private double angleOffsetDegrees = 59.0;
 
     // Tracking
-    private char[] filled = {'_', '_', '_'};
+    public char[] filled = {'_', '_', '_'};
     private int intakeIndex = 0;
     private int shootIndex = 0;
 

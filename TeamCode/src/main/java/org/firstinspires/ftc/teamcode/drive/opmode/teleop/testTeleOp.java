@@ -47,6 +47,8 @@ public class testTeleOp extends OpMode {
     private double lastAdvanceTime = 0;
     private static double OUTTAKE_DELAY_MS = 300;
 
+    private int spinInterval = 0;
+
     private double currentRPM = 2500.0;
 
 
@@ -63,7 +65,7 @@ public class testTeleOp extends OpMode {
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor);
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
-        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, true);
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, false);
         loopTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
 
@@ -182,8 +184,14 @@ public class testTeleOp extends OpMode {
             handleSingleOuttake();
         }
 
-        if (spindexer.isFull()){
-            barIntake.stop();
+        if (spindexer.isFull() && !outtakeInProgress && !singleOuttakeInProgress){
+            spindexer.setShootIndex(1);
+            if (spinInterval > 50 && spinInterval < 100)
+                barIntake.spinOuttake();
+            else {
+                spinInterval++;
+                barIntake.stop();
+            }
         }
         // Update spindexer
         spindexer.update();
@@ -201,6 +209,12 @@ public class testTeleOp extends OpMode {
         char[] filled = spindexer.getFilled();
         telemetry.addData("Filled Slots", "[" + filled[0] + ", " + filled[1] + ", " + filled[2] + "]");
         telemetry.update();
+
+        // Field Reset
+        if(gamepad1.startWasPressed()){
+            follower.setPose(startingPose);
+            turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, true, turret.getTurretAngle());
+        }
     }
 
     private void startOuttakeRoutine() {

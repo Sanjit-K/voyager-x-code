@@ -8,29 +8,20 @@ import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.PathChain;
+import com.qualcomm.hardware.limelightvision.Limelight3A;
+import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.intake.BarIntake;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
-import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
-import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 import org.firstinspires.ftc.teamcode.shooting.KickerServo;
 import org.firstinspires.ftc.teamcode.shooting.Turret;
+import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
+import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 
-/**
- * Sequence requested (same methodology):
- *  ShootPreset -> Pickup1 -> Shoot1 -> Pickup2 -> Shoot2 -> Pickup3 -> Shoot3 -> Park
- *
- * Methodology preserved:
- *  - turret to SCAN angle before/while driving to first shoot
- *  - AprilTag scan at shoot point -> choose shooting angle -> volley
- *  - non-blocking outtake routine (kick + spindexer advances with delay)
- *  - motif (ball) classification logic hook
- *  - optional settle wait after arriving at shoot points (WAIT_AFTER_SHOT_MS)
- *  - park uses speed scalar PARK_SPEED (default 0.7)
- */
+
 @Autonomous(name = "Blue 12 Ball Auto", group = "Autonomous")
 @Configurable
 public class BlueTwelveBallAuto extends OpMode {
@@ -47,14 +38,34 @@ public class BlueTwelveBallAuto extends OpMode {
     private KickerServo kickerServo;
     private Turret turret;
 
-    // -------------------- Config --------------------
-    public static double SCAN_TURRET_DEG = 308;
-    public static double DEFAULT_SHOOT_TURRET_DEG = 286;
-    public static double SHOOT_RPM = 3250;
+    // -------------------- Motifs --------------------
+    private Limelight3A limelight;
+    private int scannedTagId = 0;
 
+    // Simple motif lookup helpers. Given a tag id (21,22,23) return a 4-int pattern
+    // The integers are placeholders (0/1/2) and can be changed later.
+    private static int[] getMotifForTag(int tagId) {
+        switch (tagId) {
+            case 21: return new int[]{0, 0, 2, 1};
+            case 22: return new int[]{1, 1, 0, 2};
+            case 23: return new int[]{2, 2, 1, 0};
+            default: return null;
+        }
+    }
+
+    private int[] order = null;
+
+
+    // -------------------- Config (tune in Panels) --------------------
+    public static double SCAN_TURRET_DEG = 270;         // turret angle while scanning for tag
+    public static double SHOOT_DEG = 315;
+    public static double SHOOT_RPM = 2400;
+
+    public static double PARK_SPEED = 0.50;         // follower speed scalar for park
+
+    // Outtake cadence
     public static double OUTTAKE_DELAY_MS = 700;
-    public static int WAIT_AFTER_SHOT_MS = 200;     // settle wait after reaching each shoot pose
-    public static double PARK_SPEED = 0.70;
+    private double targetAngle = SCAN_TURRET_DEG;
 
     // -------------------- State machine --------------------
     private int pathState = 0;
@@ -73,15 +84,9 @@ public class BlueTwelveBallAuto extends OpMode {
     private final ElapsedTime outtakeTimer = new ElapsedTime();
     private boolean outtakeInProgress = false;
     private int outtakeAdvanceCount = 0;
-    private int outtakeTargetShots = 3; // always 3 in this auto (shoot preset + shoot1 + shoot2 + shoot3)
-    private double lastAdvanceTimeMs = 0.0;
+    private double lastAdvanceTime = 0.0;
 
-    // -------------------- AprilTag scanning (HOOK / stub) --------------------
-    private final TagScanner tagScanner = new TagScanner();
 
-    // -------------------- Motif (ball) classification --------------------
-    private enum BallClass { ALLIANCE_OK, OPPONENT, UNKNOWN }
-    public static boolean EJECT_OPPONENT_BALLS = true;
 
     // -----------------------------------------------------------------------------------------
     // init / start / loop
@@ -93,10 +98,10 @@ public class BlueTwelveBallAuto extends OpMode {
 
         follower = Constants.createFollower(hardwareMap);
 
-        // IMPORTANT: must match first path start (ShootPreset starts at 33,136,180deg in Paths below)
-        follower.setStartingPose(new Pose(33, 136, Math.toRadians(180)));
+        // IMPORTANT: starting pose must match start of first path
+        follower.setStartingPose(new Pose(22.55, 123.14, Math.toRadians(180)));
 
-        // Subsystems (names match your other autos)
+        // Subsystems
         barIntake = new BarIntake(hardwareMap, "barIntake", true);
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(
@@ -115,26 +120,23 @@ public class BlueTwelveBallAuto extends OpMode {
                 "transferMotor",
                 false,
                 true,
-                true,
-                308
+                false,
+                270
         );
+        limelight = hardwareMap.get(Limelight3A.class, "limelight");
+        limelight.pipelineSwitch(1);   // make sure pipeline 0 is APRILTAG
+        limelight.setPollRateHz(100);
+        limelight.start();
+        spindexer.filled = new char[]{'X', 'X', 'X'};
 
-        // Build paths
+        // Paths
         paths = new Paths(follower);
 
-        // Startup
+        // Startup config
         kickerServo.normal();
-        barIntake.spinIntake();
-
-        turret.on();
-        turret.transferOn();
         turret.setShooterRPM(SHOOT_RPM);
 
-        // Vision
-        tagScanner.init(hardwareMap);
 
-        // Pre-aim turret to scan angle
-        turret.goToPosition(SCAN_TURRET_DEG);
 
         panelsTelemetry.debug("Status", "Initialized");
         panelsTelemetry.update(telemetry);
@@ -145,43 +147,44 @@ public class BlueTwelveBallAuto extends OpMode {
         outtakeInProgress = false;
         setState(0);
 
+        stateTimer.reset();
+
         turret.on();
         turret.transferOn();
         turret.setShooterRPM(SHOOT_RPM);
-
-        barIntake.spinIntake();
-
-        tagScanner.start();
     }
 
     @Override
     public void loop() {
-        // Update follower first
+        // 1) Always update follower first
         follower.update();
 
-        // Keep shooter ready
+        // 2) Always keep shooter ready
         turret.on();
-        turret.transferOn();
         turret.setShooterRPM(SHOOT_RPM);
+        turret.goToPosition(targetAngle);
 
-        // Update spindexer + classification
+        // 3) Update spindexer and run motif classification
         spindexer.update();
-        handleMotifClassification();
+        if (!outtakeInProgress && spindexer.isFull()) {
+            barIntake.stop();
+        }
 
-        // Run state machine
+        // 4) Run state machine
         autonomousUpdate();
 
-        // Telemetry
+        // 5) Telemetry
         panelsTelemetry.debug("State", pathState);
         panelsTelemetry.debug("X", follower.getPose().getX());
         panelsTelemetry.debug("Y", follower.getPose().getY());
         panelsTelemetry.debug("Heading", follower.getPose().getHeading());
         panelsTelemetry.debug("Outtake", outtakeInProgress);
-        panelsTelemetry.debug("Balls", safeGetBalls());
-        panelsTelemetry.debug("Tag Seen", tagScanner.hasTag());
-        panelsTelemetry.debug("Tag Id", tagScanner.getTagId());
+        panelsTelemetry.debug("Balls", spindexer.getBalls());
+
+
         panelsTelemetry.update(telemetry);
     }
+
 
     // -----------------------------------------------------------------------------------------
     // State machine
@@ -194,252 +197,199 @@ public class BlueTwelveBallAuto extends OpMode {
             return;
         }
 
-        switch (pathState) {
+        if (scannedTagId == 0) {
+            LLResult result = limelight.getLatestResult();
+            if (result != null && result.getFiducialResults() != null && !result.getFiducialResults().isEmpty()) {
+                scannedTagId = result.getFiducialResults().get(0).getFiducialId();
+                order = getMotifForTag(scannedTagId);
+                panelsTelemetry.debug("Scanned Tag ID", scannedTagId);
+            }
+        }
 
+        switch (pathState) {
             // ------------------------------------------------------------
-            // 0) Pre-aim turret for tag scan, drive to ShootPreset
+            // 0) Turret to scan angle, start path ShootPreset
             // ------------------------------------------------------------
             case 0:
-                turret.goToPosition(SCAN_TURRET_DEG);
-                tagScanner.update();
-
                 follower.followPath(paths.ShootPreset);
+                if (order != null && order.length > 0) {
+                    spindexer.setShootIndex(order[0]);
+                    targetAngle = SHOOT_DEG;
+                }
                 setState(1);
                 break;
 
+
             // ------------------------------------------------------------
-            // 1) ShootPreset complete -> scan tag -> shoot 3 -> go Pickup1
+            // 1) Wait for order (if any) and then wait for follower to finish
             // ------------------------------------------------------------
             case 1:
-                tagScanner.update();
-                turret.goToPosition(SCAN_TURRET_DEG);
-
+                if (order != null && order.length > 0 && !outtakeInProgress) {
+                    spindexer.setShootIndex(order[0]);
+                    targetAngle = SHOOT_DEG;
+                }
                 if (!follower.isBusy()) {
-                    // choose shooting angle at the shooting location
-                    double shootAngle = chooseShootAngleFromTagOrDefault();
-                    turret.goToPosition(shootAngle);
-
-                    if (stateTimer.milliseconds() < WAIT_AFTER_SHOT_MS) return;
-
-                    outtakeTargetShots = 3;
-                    startOuttakeRoutine(outtakeTargetShots);
-                    setState(2);
+                    if (stateTimer.milliseconds() > 5000){
+                        startOuttakeRoutine();
+                        setState(2);
+                    }
                 }
                 break;
 
-            // 2) After volley -> Pickup1
+            // ------------------------------------------------------------
+            // 2) After outtake completes, go pick up balls
+            // ------------------------------------------------------------
             case 2:
                 if (!outtakeInProgress) {
-                    barIntake.spinIntake();
                     follower.followPath(paths.Pickup1);
+                    if (spindexer.isFull() && !outtakeInProgress) spindexer.setShootIndex(order[1]);
                     setState(3);
                 }
                 break;
 
-            // 3) Pickup1 complete -> Shoot1
+            // ------------------------------------------------------------
+            // 3) After pickup1, prepare shoot1
+            // ------------------------------------------------------------
             case 3:
                 if (!follower.isBusy()) {
+                    if (!outtakeInProgress) spindexer.setShootIndex(order[1]);
                     follower.followPath(paths.Shoot1);
                     setState(4);
                 }
                 break;
 
-            // 4) Shoot1 complete -> wait -> shoot 3 -> Pickup2
+            // ------------------------------------------------------------
+            // 4) After shoot1 path completes, start outtake
+            // ------------------------------------------------------------
             case 4:
-                tagScanner.update();
                 if (!follower.isBusy()) {
-                    if (stateTimer.milliseconds() < WAIT_AFTER_SHOT_MS) return;
-
-                    double shootAngle = chooseShootAngleFromTagOrDefault();
-                    turret.goToPosition(shootAngle);
-
-                    outtakeTargetShots = 3;
-                    startOuttakeRoutine(outtakeTargetShots);
+                    startOuttakeRoutine();
                     setState(5);
                 }
                 break;
 
-            // 5) After volley -> Pickup2
+            // ------------------------------------------------------------
+            // 5) After outtake, pickup2
+            // ------------------------------------------------------------
             case 5:
                 if (!outtakeInProgress) {
-                    barIntake.spinIntake();
                     follower.followPath(paths.Pickup2);
+                    if (spindexer.isFull() && !outtakeInProgress) spindexer.setShootIndex(order[2]);
                     setState(6);
                 }
                 break;
 
-            // 6) Pickup2 complete -> Shoot2
+            // ------------------------------------------------------------
+            // 6) After pickup2, shoot2
+            // ------------------------------------------------------------
             case 6:
                 if (!follower.isBusy()) {
+                    if (spindexer.isFull() && !outtakeInProgress) spindexer.setShootIndex(order[2]);
                     follower.followPath(paths.Shoot2);
                     setState(7);
                 }
                 break;
 
-            // 7) Shoot2 complete -> wait -> shoot 3 -> Pickup3
+            // ------------------------------------------------------------
+            // 7) After shoot2 path completes, start outtake
+            // ------------------------------------------------------------
             case 7:
-                tagScanner.update();
                 if (!follower.isBusy()) {
-                    if (stateTimer.milliseconds() < WAIT_AFTER_SHOT_MS) return;
-
-                    double shootAngle = chooseShootAngleFromTagOrDefault();
-                    turret.goToPosition(shootAngle);
-
-                    outtakeTargetShots = 3;
-                    startOuttakeRoutine(outtakeTargetShots);
+                    startOuttakeRoutine();
                     setState(8);
                 }
                 break;
 
-            // 8) After volley -> Pickup3
+            // ------------------------------------------------------------
+            // 8) After outtake, pickup3 (restored missing case)
+            // ------------------------------------------------------------
             case 8:
                 if (!outtakeInProgress) {
-                    barIntake.spinIntake();
                     follower.followPath(paths.Pickup3);
+                    if (spindexer.isFull() && !outtakeInProgress) spindexer.setShootIndex(order[3]);
                     setState(9);
                 }
                 break;
 
-            // 9) Pickup3 complete -> Shoot3
+            // ------------------------------------------------------------
+            // 9) After pickup3, shoot3
+            // ------------------------------------------------------------
             case 9:
                 if (!follower.isBusy()) {
+                    if (spindexer.isFull() && !outtakeInProgress) spindexer.setShootIndex(order[3]);
                     follower.followPath(paths.Shoot3);
                     setState(10);
                 }
                 break;
 
-            // 10) Shoot3 complete -> wait -> shoot 3 -> Park
+            // ------------------------------------------------------------
+            // 10) After shoot3 path completes, start outtake
+            // ------------------------------------------------------------
             case 10:
-                tagScanner.update();
                 if (!follower.isBusy()) {
-                    if (stateTimer.milliseconds() < WAIT_AFTER_SHOT_MS) return;
-
-                    double shootAngle = chooseShootAngleFromTagOrDefault();
-                    turret.goToPosition(shootAngle);
-
-                    outtakeTargetShots = 3;
-                    startOuttakeRoutine(outtakeTargetShots);
+                    startOuttakeRoutine();
                     setState(11);
                 }
                 break;
 
-            // 11) After volley -> Park (speed scalar)
+            // ------------------------------------------------------------
+            // 11) After final outtake, park
+            // ------------------------------------------------------------
             case 11:
                 if (!outtakeInProgress) {
-                    // If your follower doesn't support this overload, replace with follower.followPath(paths.Park);
                     follower.followPath(paths.Park, PARK_SPEED, false);
                     setState(12);
                 }
                 break;
 
-            // 12) Done when park completes
+            // ------------------------------------------------------------
+            // 13) Idle
+            // ------------------------------------------------------------
             case 12:
-                if (!follower.isBusy()) {
-                    setState(13);
-                }
-                break;
-
-            case 13:
-                // End state
                 break;
         }
     }
 
-    // -----------------------------------------------------------------------------------------
-    // Outtake routine (kick + advance N shots with delay)
-    // -----------------------------------------------------------------------------------------
-
-    private void startOuttakeRoutine(int targetShots) {
+    private void startOuttakeRoutine() {
         outtakeInProgress = true;
         outtakeAdvanceCount = 0;
-        outtakeTargetShots = targetShots;
         outtakeTimer.reset();
-        lastAdvanceTimeMs = 0.0;
+        lastAdvanceTime = 0;
 
-        turret.on();
+
+        // Step 1: Turn on transfer wheel and turret wheel
         turret.transferOn();
 
+        // Step 2: Set kicker servo to kick
         kickerServo.kick();
-
-        // First advance immediately
-        spindexer.advanceIntake();
-        outtakeAdvanceCount++;
-        lastAdvanceTimeMs = outtakeTimer.milliseconds();
+        lastAdvanceTime = outtakeTimer.milliseconds();
     }
 
     private void handleOuttakeRoutine() {
-        double now = outtakeTimer.milliseconds();
+        double currentTime = outtakeTimer.milliseconds();
 
-        if (outtakeAdvanceCount < outtakeTargetShots) {
-            if (now - lastAdvanceTimeMs >= OUTTAKE_DELAY_MS) {
-                spindexer.advanceIntake();
+        // Check if it's time for the next advanceIntake call
+        if (outtakeAdvanceCount < 2) {
+            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS) {
+                spindexer.advanceShoot();
                 outtakeAdvanceCount++;
-                lastAdvanceTimeMs = now;
+                lastAdvanceTime = currentTime;
             }
-            return;
-        }
-
-        // After final advance, wait one more delay then finish
-        if (now - lastAdvanceTimeMs >= OUTTAKE_DELAY_MS) {
-            kickerServo.normal();
-            spindexer.clearTracking();
-            barIntake.spinIntake();
-            outtakeInProgress = false;
-        }
-    }
-
-    // -----------------------------------------------------------------------------------------
-    // Motif (ball) classification logic (HOOK)
-    // -----------------------------------------------------------------------------------------
-
-    private void handleMotifClassification() {
-        if (outtakeInProgress) return;
-
-        // Only attempt classification if you actually have something to classify
-        int balls = safeGetBalls();
-        if (balls <= 0) return;
-
-        BallClass cls = classifyBall();
-
-        if (EJECT_OPPONENT_BALLS && cls == BallClass.OPPONENT) {
-            // HOOK: replace with your real reject action (reverse spindexer/intake, open gate, etc.)
-            barIntake.stop();
-        } else if (cls == BallClass.ALLIANCE_OK) {
-            barIntake.spinIntake();
+        } else {
+            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS) {
+                // All 3 advanceIntake calls completed, set kicker back to normal
+                kickerServo.normal();
+                spindexer.clearTracking();
+                barIntake.spinIntake();
+                spindexer.setIntakeIndex(0);
+                outtakeInProgress = false;
+            }
         }
     }
 
-    private BallClass classifyBall() {
-        // HOOK: map to your real ColorSensor/Spindexer classification
-        return BallClass.UNKNOWN;
-    }
 
     // -----------------------------------------------------------------------------------------
-    // AprilTag -> shoot angle (HOOK)
-    // -----------------------------------------------------------------------------------------
-
-    private double chooseShootAngleFromTagOrDefault() {
-        tagScanner.update();
-        if (!tagScanner.hasTag()) return DEFAULT_SHOOT_TURRET_DEG;
-
-        int id = tagScanner.getTagId();
-        if (id == 1) return 286;
-        if (id == 2) return 290;
-        if (id == 3) return 294;
-
-        return DEFAULT_SHOOT_TURRET_DEG;
-    }
-
-    private int safeGetBalls() {
-        try {
-            return spindexer.getBalls();
-        } catch (Throwable t) {
-            return -1;
-        }
-    }
-
-    // -----------------------------------------------------------------------------------------
-    // Paths (ShootPreset -> Pickup1 -> Shoot1 -> Pickup2 -> Shoot2 -> Pickup3 -> Shoot3 -> Park)
+    // Paths (your provided geometry)
     // -----------------------------------------------------------------------------------------
 
     public static class Paths {
@@ -449,7 +399,6 @@ public class BlueTwelveBallAuto extends OpMode {
         public PathChain Pickup2;
         public PathChain Shoot2;
 
-        // NEW: pickup3 + shoot3 added for your extended methodology
         public PathChain Pickup3;
         public PathChain Shoot3;
 
@@ -460,7 +409,7 @@ public class BlueTwelveBallAuto extends OpMode {
             // These match the pathing you showed
             ShootPreset = follower.pathBuilder().addPath(
                             new BezierLine(
-                                    new Pose(322.55, 123.14),
+                                    new Pose(22.55, 123.14),
                                     new Pose(48.000, 96.000)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
@@ -530,29 +479,5 @@ public class BlueTwelveBallAuto extends OpMode {
                     ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
         }
-    }
-
-    // -----------------------------------------------------------------------------------------
-    // TagScanner stub (replace with your actual pipeline wrapper)
-    // -----------------------------------------------------------------------------------------
-
-    private static class TagScanner {
-        private boolean started = false;
-        private boolean hasTag = false;
-        private int tagId = -1;
-
-        public void init(com.qualcomm.robotcore.hardware.HardwareMap hw) {
-            // TODO: init camera + AprilTag processor
-        }
-
-        public void start() { started = true; }
-
-        public void update() {
-            if (!started) return;
-            // TODO: read detections and update hasTag/tagId
-        }
-
-        public boolean hasTag() { return hasTag; }
-        public int getTagId() { return tagId; }
     }
 }

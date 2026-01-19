@@ -62,7 +62,7 @@ public class RedTeleOp extends OpMode {
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor);
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
-        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, true, 72);
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, false, 72);
         loopTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
 
