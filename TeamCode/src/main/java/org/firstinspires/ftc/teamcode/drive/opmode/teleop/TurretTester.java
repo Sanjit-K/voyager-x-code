@@ -17,7 +17,7 @@ public class TurretTester extends OpMode {
     public void init() {
         follower = Constants.createFollower(hardwareMap);
         // Turret constructor: HardwareMap, shooterName, turretName, turretEncoderName, shooterReversed, turretReversed
-        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, false);
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
         follower.setStartingPose(new Pose(7.5, 7.75, 0));
     }
 
@@ -50,9 +50,8 @@ public class TurretTester extends OpMode {
         telemetry.addData("Robot Heading", Math.toDegrees(follower.getPose().getHeading()));
         telemetry.addData("Target X", targetPose.getX());
         telemetry.addData("Target Y", targetPose.getY());
-        telemetry.addData("Shooter Power", turret.getShooterRPM());
-        telemetry.addData("Turret Angle", turret.getTurretAngle());
-        telemetry.addData("Raw Voltage", turret.getTurretVoltage());
+        telemetry.addData("Shooter RPM", turret.getShooterRPM());
+        telemetry.addData("Turret Voltage", turret.getTurretVoltage());
         telemetry.update();
     }
 

@@ -36,7 +36,7 @@ public class TransferTest extends OpMode {
         barIntake = new BarIntake(hardwareMap, "barIntake", true);
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor");
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
-        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false,false, true);
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false,false);
         loopTimer = new ElapsedTime();
 //        spindexer.moveToZero();
 

@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode.drive.opmode.teleop;
 
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
-import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -17,14 +16,14 @@ import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 
 @TeleOp(name = "Test TeleOp", group = "TeleOp")
-public class testTeleOp extends OpMode {
+public class TestTeleOp extends OpMode {
     private Follower follower;
     private LockMode lockMode;
     private boolean isLocked = false;
-    private static final Pose startingPose = new Pose(7.5, 7.75, Math.toRadians(0));
+    private static final Pose startingPose = new Pose(7.5, 7.5, Math.toRadians(0));
     private BarIntake barIntake;
-    private Limelight3A limelight;
     private Spindexer spindexer;
+
 
     private int offset_turret = 0;
     private KickerServo kickerServo;
@@ -35,7 +34,6 @@ public class testTeleOp extends OpMode {
     private LynxModule expansionHub;
     private static final double OFFSET = Math.toRadians(180.0);
     private Pose targetPose = new Pose(0, 144, 0); // Fixed target
-
 
     // Outtake routine state
     private boolean outtakeInProgress = false;
@@ -49,7 +47,27 @@ public class testTeleOp extends OpMode {
 
     private int spinInterval = 0;
 
+
     private double currentRPM = 2500.0;
+
+    // --- velocity-based RPM compensation ---
+    private Pose lastPose = null;
+    private double lastPoseTimeSec = 0.0;
+
+    /**
+     * Inches/sec. Positive = robot moving away from target (distance increasing),
+     * negative = robot moving toward target (distance decreasing).
+     */
+    private double radialVelocityIps = 0.0;
+
+    /** Tune: RPM change per (inch/sec) of radial velocity. */
+    private static final double RPM_PER_IPS = 4.0;
+
+    /** Tune: ignore tiny velocity noise. */
+    private static final double RADIAL_VEL_DEADBAND_IPS = 1.0;
+
+    /** Tune: clamp total velocity compensation so it can’t run away. */
+    private static final double MAX_RPM_VEL_COMP = 250.0;
 
 
     @Override
@@ -58,18 +76,21 @@ public class testTeleOp extends OpMode {
         expansionHub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
         follower = Constants.createFollower(hardwareMap);
         lockMode = new LockMode(follower);
-        limelight = hardwareMap.get(Limelight3A.class, "limelight");
-        limelight.pipelineSwitch(1);
-        limelight.start();
         barIntake = new BarIntake(hardwareMap, "barIntake", true);
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor);
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
-        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, false);
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
         loopTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
+        turret.goToPosition(180);
+
 
         follower.setStartingPose(startingPose);
+
+        // Initialize velocity estimator
+        lastPose = follower.getPose();
+        lastPoseTimeSec = getRuntime();
     }
 
     @Override
@@ -87,9 +108,12 @@ public class testTeleOp extends OpMode {
         double loopMs = loopTimer.milliseconds();
         loopTimer.reset();
 
-        // Drive control
+        // Update follower first
         follower.update();
 
+        // --- lock mode drive control ---
+        // When locked, LockMode runs a tiny oscillation path to keep translational/heading PIDs engaged.
+        // Otherwise, ensure we are in normal teleop drive.
         if (isLocked) {
             lockMode.lockPosition();
         } else {
@@ -99,14 +123,55 @@ public class testTeleOp extends OpMode {
                     -gamepad1.left_stick_x,
                     -gamepad1.right_stick_x,
                     false,
-                    OFFSET);
+                    OFFSET
+            );
         }
 
-        // Intake control
-        if (gamepad1.aWasPressed()) {
-            barIntake.spinIntake();
-        } else if (gamepad1.bWasPressed()) {
-            barIntake.spinOuttake();
+        // --- estimate robot velocity (radial relative to target) ---
+        Pose currentPose = follower.getPose();
+        double nowSec = getRuntime();
+        double dt = nowSec - lastPoseTimeSec;
+        if (lastPose != null && dt > 1e-3) {
+            double dx = currentPose.getX() - lastPose.getX();
+            double dy = currentPose.getY() - lastPose.getY();
+
+            // Robot velocity vector (inches/sec)
+            double vx = dx / dt;
+            double vy = dy / dt;
+
+            // Unit vector from robot -> target
+            double toTargetX = targetPose.getX() - currentPose.getX();
+            double toTargetY = targetPose.getY() - currentPose.getY();
+            double distToTarget = Math.hypot(toTargetX, toTargetY);
+
+            if (distToTarget > 1e-6) {
+                double ux = toTargetX / distToTarget;
+                double uy = toTargetY / distToTarget;
+
+                // Positive means moving toward target; negative means moving away
+                double closingSpeedIps = vx * ux + vy * uy;
+
+                // We want a sign convention where + = away, - = toward (distance rate).
+                radialVelocityIps = -closingSpeedIps;
+
+                if (Math.abs(radialVelocityIps) < RADIAL_VEL_DEADBAND_IPS) {
+                    radialVelocityIps = 0.0;
+                }
+            } else {
+                radialVelocityIps = 0.0;
+            }
+        }
+        lastPose = currentPose;
+        lastPoseTimeSec = nowSec;
+
+        // Field Reset
+        if (gamepad1.startWasPressed()){
+            follower.setPose(new Pose(136.5, 7.75, Math.toRadians(180)));
+            turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
+
+            // Ensure LockMode doesn't keep stale state across reset
+            isLocked = false;
+            lockMode.unlockPosition();
         }
 
         // Spindex control
@@ -127,21 +192,21 @@ public class testTeleOp extends OpMode {
             turret.on();
             startOuttakeRoutine();
         }
-        if (gamepad1.right_trigger > 0.5) {
-            turret.trackTarget(follower.getPose(), targetPose, offset_turret);
-        } else {
-            turret.setTurretPower(0.0);
-        }
+
+        turret.trackTarget(follower.getPose(), targetPose, offset_turret);
+
+
 
         if(gamepad1.dpadDownWasPressed()){
             rpmCap = !rpmCap;
             gamepad1.rumble(200);
         }
 
-        if(!rpmCap){ //if there is NO rpm cap.
+        if (!rpmCap){ //if there is NO rpm cap.
             OUTTAKE_DELAY_MS = 600;
             offset_turret = -7;
-        }else{ //if there IS an RPM cap
+        }
+        else { //if there IS an RPM cap
             OUTTAKE_DELAY_MS = 300;
             offset_turret = 0;
 
@@ -149,25 +214,31 @@ public class testTeleOp extends OpMode {
 
 
         double distance = Math.sqrt((targetPose.getX() - follower.getPose().getX())
-                                    * (targetPose.getX() - follower.getPose().getX())
-                                    + (targetPose.getY() - follower.getPose().getY())
-                                    * (targetPose.getY() - follower.getPose().getY()));
+                * (targetPose.getX() - follower.getPose().getX())
+                + (targetPose.getY() - follower.getPose().getY())
+                * (targetPose.getY() - follower.getPose().getY()));
 
         currentRPM = 0.0151257 * distance * distance
-                             + 10.03881 * distance
-                             + 1382.4428;
-        currentRPM = (currentRPM > 2700 && rpmCap) ? 2700 : currentRPM;
+                + 10.03881 * distance
+                + 1382.4428;
+
+        // Velocity compensation:
+        // - if moving toward goal (radialVelocityIps negative) => decrease RPM
+        // - if moving away (radialVelocityIps positive) => increase RPM
+        double velComp = RPM_PER_IPS * radialVelocityIps;
+        velComp = Math.max(-MAX_RPM_VEL_COMP, Math.min(MAX_RPM_VEL_COMP, velComp));
+        currentRPM += velComp;
+
+        currentRPM = (currentRPM > 2800 && rpmCap) ? 2800 : currentRPM;
+
         // Update RPM
         turret.setShooterRPM(currentRPM);
         turret.on(); // Update velocity
 
-        if (gamepad1.right_trigger > 0.5 && Math.abs(turret.getSetShooterRPM()-turret.getShooterRPM()) < 20){
-            gamepad1.rumble(100);
-        }
-        else {
-            gamepad1.stopRumble();
-        }
+
         telemetry.addData("Calculated Distance (in)", distance);
+        telemetry.addData("Radial Vel (ips)", radialVelocityIps);
+        telemetry.addData("RPM Vel Comp", velComp);
         telemetry.addData("Current target RPM:", currentRPM);
 
         if (gamepad1.leftStickButtonWasPressed()){
@@ -184,17 +255,20 @@ public class testTeleOp extends OpMode {
             handleSingleOuttake();
         }
 
+
         if (spindexer.isFull() && !outtakeInProgress && !singleOuttakeInProgress){
             spindexer.setShootIndex(1);
-            if (spinInterval > 50 && spinInterval < 100)
+            spinInterval++;
+            if (spinInterval > 40 && spinInterval < 60)
                 barIntake.spinOuttake();
             else {
-                spinInterval++;
                 barIntake.stop();
             }
         }
-        // Update spindexer
+
         spindexer.update();
+
+
 
 
         // Spindexer diagnostic telemetry (angle, velocity, adaptive tolerance, output, etc.)
@@ -202,6 +276,7 @@ public class testTeleOp extends OpMode {
         // Telemetry
         telemetry.addData("Lock Mode Active", isLocked);
         telemetry.addData("Spindexer Index", spindexer.getIntakeIndex());
+        telemetry.addData("Robot Pose: ", "(" + follower.getPose().getX() + ", " + follower.getPose().getY() + ", " + follower.getPose().getHeading() + ")" );
         telemetry.addData("Adaptive Tolerance", String.format(java.util.Locale.US, "%.2f", spindexer.getLastAdaptiveTol()));
         telemetry.addData("Turret RPM Error", String.format(java.util.Locale.US, "%.1f", turret.getShooterRPM() - turret.getSetShooterRPM()));
         telemetry.addData("Outtake In Progress", outtakeInProgress);
@@ -209,12 +284,6 @@ public class testTeleOp extends OpMode {
         char[] filled = spindexer.getFilled();
         telemetry.addData("Filled Slots", "[" + filled[0] + ", " + filled[1] + ", " + filled[2] + "]");
         telemetry.update();
-
-        // Field Reset
-        if(gamepad1.startWasPressed()){
-            follower.setPose(startingPose);
-            turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, true, turret.getTurretAngle());
-        }
     }
 
     private void startOuttakeRoutine() {
@@ -224,13 +293,12 @@ public class testTeleOp extends OpMode {
         outtakeTimer.reset();
         lastAdvanceTime = 0;
 
-        
+
+        // Step 1: Turn on transfer wheel and turret wheel
+        turret.transferOn();
+
         // Step 2: Set kicker servo to kick
         kickerServo.kick();
-
-        // Step 3: First advanceIntake call immediately
-        spindexer.advanceIntake();
-        outtakeAdvanceCount++;
         lastAdvanceTime = outtakeTimer.milliseconds();
     }
 
@@ -238,9 +306,9 @@ public class testTeleOp extends OpMode {
         double currentTime = outtakeTimer.milliseconds();
 
         // Check if it's time for the next advanceIntake call
-        if (outtakeAdvanceCount < 3) {
-            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS) {
-                spindexer.advanceIntake();
+        if (outtakeAdvanceCount < 2) {
+            if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 2 : OUTTAKE_DELAY_MS)) {
+                spindexer.advanceShoot();
                 outtakeAdvanceCount++;
                 lastAdvanceTime = currentTime;
             }
@@ -250,6 +318,8 @@ public class testTeleOp extends OpMode {
                 kickerServo.normal();
                 spindexer.clearTracking();
                 barIntake.spinIntake();
+                spinInterval = 0;
+                spindexer.setIntakeIndex(0);
                 outtakeInProgress = false;
                 isLocked = false;
             }
@@ -274,7 +344,7 @@ public class testTeleOp extends OpMode {
         spindexer.setShootIndex(index);
     }
 
-    private void handleSingleOuttake() {
+    private void handleSingleOuttake(){
         if (!singleAtPosition) {
             if (spindexer.isAtTarget(5.0)){
                 singleAtPosition = true;

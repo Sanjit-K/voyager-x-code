@@ -19,6 +19,13 @@ public class TurretLimelight extends OpMode {
     private Limelight3A limelight; //any camera here
     private Follower follower;
     Turret turret;
+
+    /**
+     * Simple open-loop target angle for the servo. We no longer have a turret angle getter,
+     * so we track the commanded angle locally.
+     */
+    private double targetAngleDeg = 180.0;
+
     @Override
     public void init() {
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
@@ -27,25 +34,30 @@ public class TurretLimelight extends OpMode {
         limelight.pipelineSwitch(1); // Switch to pipeline number 1
         follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(new Pose()); //set your starting pose
-        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false, true);
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
 
+        // Start centered/backwards by convention
+        targetAngleDeg = 180.0;
+        turret.goToPosition(targetAngleDeg);
     }
 
     @Override
-
     public void loop() {
         LLResult result = limelight.getLatestResult();
         if (result != null && result.isValid()) {
             double tx = result.getTx(); // How far left or right the target is (degrees)
-            turret.goToPosition(turret.getTurretAngle() + tx);
+
+            // Adjust our commanded target angle. Clamp to the same range enforced in trackTarget().
+            targetAngleDeg = Math.max(80.0, Math.min(280.0, targetAngleDeg + tx));
+            turret.goToPosition(targetAngleDeg);
 
             telemetry.addData("Target X", tx);
-            telemetry.addData("Turret Angle", turret.getTurretAngle());
+            telemetry.addData("Target Angle (cmd)", targetAngleDeg);
         } else {
-            turret.setTurretPower(0);
             telemetry.addData("Limelight", "No Targets");
+            telemetry.addData("Target Angle (cmd)", targetAngleDeg);
         }
+        telemetry.addData("Turret Voltage", turret.getTurretVoltage());
         telemetry.update();
-        turret.updatePosition();
     }
 }

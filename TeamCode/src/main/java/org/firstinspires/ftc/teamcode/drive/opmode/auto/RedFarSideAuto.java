@@ -113,9 +113,7 @@ public class RedFarSideAuto extends OpMode {
                 "turretEncoder",
                 "transferMotor",
                 false,
-                true,
-                true,
-                52 // may need mirroring depending on your turret convention
+                false
         );
 
         // Build paths
@@ -228,10 +226,9 @@ public class RedFarSideAuto extends OpMode {
         switch (pathState) {
 
             case 0:
-                double curr = turret.getTrackedTurretAngle();
-                double err = Math.abs(Math.IEEEremainder(targetAngleDeg - curr, 360.0));
-
-                if (err < 3.0 && turret.getShooterRPM() > 3300) {
+                // Turret tracked-angle helpers were removed from Turret.
+                // For now, treat the turret as "ready" when shooter is up to speed.
+                if (turret.getShooterRPM() > 3300) {
                     startOuttakeRoutine();
                     setState(1);
                 }

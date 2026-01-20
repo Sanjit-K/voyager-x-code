@@ -61,7 +61,7 @@ public class BlueTeleOp extends OpMode {
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor);
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
-        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, false, 287);
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
         loopTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
 
@@ -101,7 +101,7 @@ public class BlueTeleOp extends OpMode {
         // Field Reset
         if (gamepad1.startWasPressed()){
             follower.setPose(new Pose(136.5, 7.75, Math.toRadians(180)));
-            turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, true, false, turret.getTurretAngle());
+            turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
         }
 
         // Spindex control
@@ -125,8 +125,6 @@ public class BlueTeleOp extends OpMode {
 
         if (gamepad1.right_trigger > 0.5) {
             turret.trackTarget(follower.getPose(), targetPose, offset_turret);
-        } else {
-            turret.setTurretPower(0.0);
         }
 
 

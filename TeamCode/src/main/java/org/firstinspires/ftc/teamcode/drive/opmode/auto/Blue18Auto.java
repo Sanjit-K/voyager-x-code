@@ -91,10 +91,7 @@ public class Blue18Auto extends OpMode {
                 "turretEncoder",
                 "transferMotor",
                 false,
-                true,
-                true,
-                308
-        );
+                false);
 
         // Paths
         paths = new Paths(follower);

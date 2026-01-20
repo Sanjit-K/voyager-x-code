@@ -40,13 +40,13 @@ public class TurretTuner extends OpMode {
                 TURRET_NAME,
                 TURRET_ENCODER_NAME,
                 TRANSFER_NAME,
-                true, // shooterReversed
-                false, // turretReversed
+                false, // shooterReversed
                 false  // transferReversed
         );
 
-        // Start from current tracked angle
-        targetAngle = turret.getTrackedTurretAngle();
+        // Tracked-angle helpers were removed from Turret; start from a reasonable default.
+        targetAngle = 180.0;
+        turret.goToPosition(targetAngle);
 
         telemetry.addLine("Turret PID Tuner ready");
         telemetry.update();
@@ -89,25 +89,10 @@ public class TurretTuner extends OpMode {
         if (gamepad1.dpad_left) targetAngle -= (gamepad1.right_bumper ? 10.0 : 1.0);
         if (gamepad1.dpad_right) targetAngle += (gamepad1.right_bumper ? 10.0 : 1.0);
 
-       turret.goToPosition(targetAngle);
-
-
-
-
+        turret.goToPosition(targetAngle);
 
         // Telemetry
-        telemetry.addData("Selected", selected);
-        telemetry.addData("Kp", Turret.Kp);
-        telemetry.addData("Ki", Turret.Ki);
-        telemetry.addData("Kd", Turret.Kd);
-        telemetry.addData("kStatic", Turret.kStatic);
-        telemetry.addData("Step(Kp)", stepKP);
-        telemetry.addData("Step(Ki)", stepKI);
-        telemetry.addData("Step(Kd)", stepKD);
-        telemetry.addData("Step(kStatic)", stepKStatic);
-        telemetry.addData("Target Angle", "%.2f", targetAngle);
-        telemetry.addData("Tracked Angle", "%.2f", turret.getTrackedTurretAngle());
-        telemetry.addData("Raw Encoder (deg)", "%.2f", turret.getRawServoDegrees());
+        telemetry.addData("Target Angle (cmd)", "%.2f", targetAngle);
         telemetry.addData("Voltage", "%.3f", turret.getTurretVoltage());
         telemetry.addLine("Controls: A=Kp B=Ki X=Kd Y=kStatic | RB/LB inc/dec | DPadUp/Down step *10 / /10");
         telemetry.update();

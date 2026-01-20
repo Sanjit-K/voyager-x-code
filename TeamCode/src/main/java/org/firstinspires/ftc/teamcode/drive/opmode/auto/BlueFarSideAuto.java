@@ -121,9 +121,7 @@ public class BlueFarSideAuto extends OpMode {
                 "turretEncoder",
                 "transferMotor",
                 false,
-                true,
-                true,
-                308
+                false
         );
 
         // Build paths
@@ -249,14 +247,14 @@ public class BlueFarSideAuto extends OpMode {
             // 0: Preset Shot (shoot in place)
             // ------------------------------------------------------------
             case 0:
-                double curr = turret.getTrackedTurretAngle();
-                double err = Math.abs(Math.IEEEremainder(targetAngleDeg - curr, 360.0));
-
-                if (err < 3.0 && turret.getShooterRPM() > 3300) { // make sure angle is right
+                // Turret tracked-angle helpers were removed from Turret.
+                // Treat the turret as "ready" when the shooter is up to speed.
+                if (turret.getShooterRPM() > 3300) {
                     startOuttakeRoutine();
                     setState(1);
                 }
                 break;
+
             case 1:
                 // After preset volley completes, go pickup1
                 if (!outtakeInProgress) {

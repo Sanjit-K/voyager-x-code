@@ -90,9 +90,7 @@ public class RedAuto extends OpMode {
                 "turretEncoder",
                 "transferMotor",
                 false,
-                true,
-                true,
-                52
+                false
         );
 
         // Paths

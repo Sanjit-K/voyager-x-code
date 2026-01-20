@@ -46,9 +46,9 @@ public class BlueTwelveBallAuto extends OpMode {
     // The integers are placeholders (0/1/2) and can be changed later.
     private static int[] getMotifForTag(int tagId) {
         switch (tagId) {
-            case 21: return new int[]{0, 0, 2, 1};
+            case 21: return new int[]{2, 2, 1, 0};
             case 22: return new int[]{1, 1, 0, 2};
-            case 23: return new int[]{2, 2, 1, 0};
+            case 23: return new int[]{0, 0, 2, 1};
             default: return null;
         }
     }
@@ -58,14 +58,14 @@ public class BlueTwelveBallAuto extends OpMode {
 
 
     // -------------------- Config (tune in Panels) --------------------
-    public static double SCAN_TURRET_DEG = 270;         // turret angle while scanning for tag
+    public static double SCAN_TURRET_DEG = 250;         // turret angle while scanning for tag
     public static double SHOOT_DEG = 315;
-    public static double SHOOT_RPM = 2400;
+    public static double SHOOT_RPM = 2150;
 
     public static double PARK_SPEED = 0.50;         // follower speed scalar for park
 
     // Outtake cadence
-    public static double OUTTAKE_DELAY_MS = 700;
+    public static double OUTTAKE_DELAY_MS = 500;
     private double targetAngle = SCAN_TURRET_DEG;
 
     // -------------------- State machine --------------------
@@ -120,9 +120,7 @@ public class BlueTwelveBallAuto extends OpMode {
                 "turretEncoder",
                 "transferMotor",
                 false,
-                true,
-                false,
-                270
+                false
         );
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
         limelight.pipelineSwitch(1);   // make sure pipeline 0 is APRILTAG
@@ -181,6 +179,8 @@ public class BlueTwelveBallAuto extends OpMode {
         panelsTelemetry.debug("Heading", follower.getPose().getHeading());
         panelsTelemetry.debug("Outtake", outtakeInProgress);
         panelsTelemetry.debug("Balls", spindexer.getBalls());
+        panelsTelemetry.debug("Scanned Tag ID", scannedTagId);
+
 
 
         panelsTelemetry.update(telemetry);
@@ -203,7 +203,6 @@ public class BlueTwelveBallAuto extends OpMode {
             if (result != null && result.getFiducialResults() != null && !result.getFiducialResults().isEmpty()) {
                 scannedTagId = result.getFiducialResults().get(0).getFiducialId();
                 order = getMotifForTag(scannedTagId);
-                panelsTelemetry.debug("Scanned Tag ID", scannedTagId);
             }
         }
 
@@ -230,7 +229,7 @@ public class BlueTwelveBallAuto extends OpMode {
             // ------------------------------------------------------------
             case 1:
                 if (!follower.isBusy()) {
-                    if (stateTimer.milliseconds() > 5000){
+                    if (stateTimer.milliseconds() > 2000){
                         startOuttakeRoutine();
                         setState(2);
                         currentOrderIndex = 1;
@@ -248,23 +247,30 @@ public class BlueTwelveBallAuto extends OpMode {
                 }
                 break;
 
+
+            case 3:
+                if (!follower.isBusy()){
+                    follower.followPath(paths.Overflow);
+                    setState(4);
+                }
+
             // ------------------------------------------------------------
             // 3) After pickup1, prepare shoot1
             // ------------------------------------------------------------
-            case 3:
-                if (!follower.isBusy()) {
+            case 4:
+                if (!follower.isBusy()  && stateTimer.milliseconds() > 2500) {
                     follower.followPath(paths.Shoot1);
-                    setState(4);
+                    setState(5);
                 }
                 break;
 
             // ------------------------------------------------------------
             // 4) After shoot1 path completes, start outtake
             // ------------------------------------------------------------
-            case 4:
+            case 5:
                 if (!follower.isBusy()) {
                     startOuttakeRoutine();
-                    setState(5);
+                    setState(6);
                     currentOrderIndex = 2;
                 }
                 break;
@@ -272,28 +278,19 @@ public class BlueTwelveBallAuto extends OpMode {
             // ------------------------------------------------------------
             // 5) After outtake, pickup2
             // ------------------------------------------------------------
-            case 5:
+            case 6:
                 if (!outtakeInProgress) {
                     follower.followPath(paths.Pickup2);
-                    setState(6);
-                }
-                break;
-
-            // ------------------------------------------------------------
-            // 6) Overflow
-            // ------------------------------------------------------------
-            case 6:
-                if (!follower.isBusy()) {
-                    follower.followPath(paths.Overflow);
                     setState(7);
                 }
                 break;
+
 
             // ------------------------------------------------------------
             // 7) After overflow, shoot2
             // ------------------------------------------------------------
             case 7:
-                if (!follower.isBusy() && stateTimer.milliseconds() > 2000) {
+                if (!follower.isBusy()) {
                     follower.followPath(paths.Shoot2);
                     setState(8);
                 }
@@ -458,7 +455,7 @@ public class BlueTwelveBallAuto extends OpMode {
                             new BezierCurve(
                                     new Pose(38.000, 108.000),
                                     new Pose(88.000, 55.000),
-                                    new Pose(9.000, 59.500)
+                                    new Pose(8.000, 59.500)
                             )
                     ).setConstantHeadingInterpolation(Math.toRadians(180))
 
@@ -466,7 +463,7 @@ public class BlueTwelveBallAuto extends OpMode {
 
             Shoot2 = follower.pathBuilder().addPath(
                             new BezierCurve(
-                                    new Pose(9.000, 59.500),
+                                    new Pose(8.000, 59.500),
                                     new Pose(61.000, 52.000),
                                     new Pose(38.000, 108.000)
                             )
@@ -478,7 +475,7 @@ public class BlueTwelveBallAuto extends OpMode {
                             new BezierCurve(
                                     new Pose(38.000, 108.000),
                                     new Pose(86.000, 27.500),
-                                    new Pose(9.000, 35.500)
+                                    new Pose(8.000, 35.500)
                             )
                     ).setConstantHeadingInterpolation(Math.toRadians(180))
 
@@ -486,7 +483,7 @@ public class BlueTwelveBallAuto extends OpMode {
 
             Shoot3 = follower.pathBuilder().addPath(
                             new BezierCurve(
-                                    new Pose(9.000, 35.500),
+                                    new Pose(8.000, 35.500),
                                     new Pose(20.185, 48.501),
                                     new Pose(3.191, 75.649),
                                     new Pose(52.419, 68.354),

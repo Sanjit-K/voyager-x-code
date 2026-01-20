@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.pedroPathing;
 
+import com.pedropathing.control.PIDFCoefficients;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.follower.FollowerConstants;
 import com.pedropathing.ftc.FollowerBuilder;
@@ -19,7 +20,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 public class Constants {
 
     // -------------------- Shared driving/pathing knobs --------------------
-    public static PathConstraints pathConstraints = new PathConstraints(0.99, 100, 1, 1);
+    public static PathConstraints pathConstraints = new PathConstraints(0.99, 100, 0.8, 1);
 
     public static FollowerConstants followerConstants = new FollowerConstants()
             .mass(12)
@@ -27,7 +28,11 @@ public class Constants {
             .lateralZeroPowerAcceleration(-68.71)
             .useSecondaryDrivePIDF(true)
             .useSecondaryHeadingPIDF(true)
-            .useSecondaryTranslationalPIDF(true);
+            .useSecondaryTranslationalPIDF(true)
+            .translationalPIDFCoefficients(new PIDFCoefficients(0.1,0,0.01,0.1))
+            .secondaryTranslationalPIDFCoefficients(new PIDFCoefficients(0.12,0,0.02,0.03))
+            .headingPIDFCoefficients(new PIDFCoefficients(1,0,0.03,0.06))
+            .secondaryHeadingPIDFCoefficients(new PIDFCoefficients(1.3,0,0.04,0.03));
 
     public static MecanumConstants driveConstants = new MecanumConstants()
             .maxPower(1)
