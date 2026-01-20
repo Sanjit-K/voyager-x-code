@@ -160,8 +160,6 @@ public class BlueFarSideAuto extends OpMode {
         turret.on();
 
         // Optional turret tracking (commented like your excerpt)
-        // turret.trackTarget(follower.getPose(), targetPose);
-
         // Spindexer update (TeleOp-like)
         spindexer.update();
 

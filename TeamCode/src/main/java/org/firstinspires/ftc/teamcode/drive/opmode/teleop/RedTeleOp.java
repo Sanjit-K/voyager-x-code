@@ -136,7 +136,7 @@ public class RedTeleOp extends OpMode {
 
         if (!rpmCap) { //if there is NO rpm cap.
             OUTTAKE_DELAY_MS = 600;
-            offset_turret = 8;
+            offset_turret = 0;
         } else { //if there IS an RPM cap
             OUTTAKE_DELAY_MS = 300;
             offset_turret = 0;
