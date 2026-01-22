@@ -14,6 +14,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.intake.BarIntake;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.pedroPathing.PoseStorage;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 import org.firstinspires.ftc.teamcode.shooting.KickerServo;
@@ -147,6 +148,11 @@ public class BlueAuto extends OpMode {
         panelsTelemetry.update(telemetry);
     }
 
+    @Override
+    public void stop() {
+        // Save the robot's last known pose to the static variable
+        PoseStorage.currentPose = follower.getPose();
+    }
 
 
     // -------------------- Outtake routine (TeleOp -> Auto) --------------------

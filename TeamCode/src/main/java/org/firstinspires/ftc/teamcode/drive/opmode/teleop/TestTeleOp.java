@@ -10,6 +10,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.teamcode.drive.opmode.teleop.functions.LockMode;
 import org.firstinspires.ftc.teamcode.intake.BarIntake;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.pedroPathing.PoseStorage;
 import org.firstinspires.ftc.teamcode.shooting.KickerServo;
 import org.firstinspires.ftc.teamcode.shooting.Turret;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
@@ -20,7 +21,8 @@ public class TestTeleOp extends OpMode {
     private Follower follower;
     private LockMode lockMode;
     private boolean isLocked = false;
-    private static final Pose startingPose = new Pose(7.5, 7.5, Math.toRadians(0));
+    private static final Pose startingPose = PoseStorage.currentPose;
+
     private BarIntake barIntake;
     private Spindexer spindexer;
 
@@ -69,6 +71,8 @@ public class TestTeleOp extends OpMode {
     /** Tune: clamp total velocity compensation so it can’t run away. */
     private static final double MAX_RPM_VEL_COMP = 250.0;
 
+    private static int CloseCap = 2600;
+
 
     @Override
     public void init() {
@@ -83,10 +87,15 @@ public class TestTeleOp extends OpMode {
         turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
         loopTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
-        turret.goToPosition(180);
+        //turret.goToPosition(180);
 
 
-        follower.setStartingPose(startingPose);
+        if (PoseStorage.currentPose != null) {
+            follower.setPose(PoseStorage.currentPose);
+        } else {
+            // Default starting position if Auto wasn't run
+            follower.setPose(new Pose(0, 0, 0));
+        }
 
         // Initialize velocity estimator
         lastPose = follower.getPose();
@@ -229,7 +238,17 @@ public class TestTeleOp extends OpMode {
         velComp = Math.max(-MAX_RPM_VEL_COMP, Math.min(MAX_RPM_VEL_COMP, velComp));
         currentRPM += velComp;
 
-        currentRPM = (currentRPM > 2800 && rpmCap) ? 2800 : currentRPM;
+        currentRPM = (currentRPM > CloseCap && rpmCap) ? CloseCap : currentRPM;
+
+
+        if(gamepad1.dpadLeftWasPressed()){
+            if(CloseCap == 2800){
+                CloseCap = 2600;
+            }else{
+                CloseCap = 2800;
+            }
+            gamepad1.rumble(200);
+        }
 
         // Update RPM
         turret.setShooterRPM(currentRPM);

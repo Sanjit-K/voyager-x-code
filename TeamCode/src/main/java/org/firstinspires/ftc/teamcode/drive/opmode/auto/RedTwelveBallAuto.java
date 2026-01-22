@@ -16,6 +16,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.intake.BarIntake;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.pedroPathing.PoseStorage;
 import org.firstinspires.ftc.teamcode.shooting.KickerServo;
 import org.firstinspires.ftc.teamcode.shooting.Turret;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
@@ -178,6 +179,7 @@ public class RedTwelveBallAuto extends OpMode {
 
         // 4) Run state machine
         autonomousUpdate();
+        PoseStorage.currentPose = follower.getPose();
 
         // 5) Telemetry
         panelsTelemetry.debug("State", pathState);

@@ -354,6 +354,8 @@ public class RedAuto extends OpMode {
         }
     }
 
+
+
     // -------------------- Paths (your new pathing) --------------------
 
     public static class Paths {

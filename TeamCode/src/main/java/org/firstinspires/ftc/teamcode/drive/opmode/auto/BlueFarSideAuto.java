@@ -14,6 +14,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.intake.BarIntake;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.pedroPathing.PoseStorage;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 import org.firstinspires.ftc.teamcode.shooting.KickerServo;
@@ -80,7 +81,7 @@ public class BlueFarSideAuto extends OpMode {
     // -------------------- “Auto shoot power” equivalents in this framework --------------------
     // In your OpMode auto, shooter power is “RPM” + turret angle
     public static double currentRPM = 3250;
-    public static double targetAngleDeg = 287;
+    public static double targetAngleDeg = 289;
 
     // Optional: a target pose if you use turret tracking (left here for parity)
     private final Pose targetPose = new Pose(0, 144, 0);
@@ -171,6 +172,8 @@ public class BlueFarSideAuto extends OpMode {
 
         // Run auto state machine
         autonomousUpdate();
+
+        PoseStorage.currentPose = follower.getPose();
 
         // Telemetry
         panelsTelemetry.debug("Match Time (s)", matchTimer.seconds());
@@ -378,6 +381,9 @@ public class BlueFarSideAuto extends OpMode {
             // ------------------------------------------------------------
             case 90:
                 if (!follower.isBusy()) {
+                    //wait for 300 ms
+                    if (waitTimer.milliseconds() < 200) return;
+
                     // Tune for SHOOT_POSE
                     startOuttakeRoutine();
                     setState(91);

@@ -16,6 +16,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.intake.BarIntake;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.pedroPathing.PoseStorage;
 import org.firstinspires.ftc.teamcode.shooting.KickerServo;
 import org.firstinspires.ftc.teamcode.shooting.Turret;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
@@ -59,7 +60,7 @@ public class BlueTwelveBallAuto extends OpMode {
 
     // -------------------- Config (tune in Panels) --------------------
     public static double SCAN_TURRET_DEG = 250;         // turret angle while scanning for tag
-    public static double SHOOT_DEG = 315;
+    public static double SHOOT_DEG = 318;
     public static double SHOOT_RPM = 2150;
 
     public static double PARK_SPEED = 0.50;         // follower speed scalar for park
@@ -178,6 +179,7 @@ public class BlueTwelveBallAuto extends OpMode {
 
         // 4) Run state machine
         autonomousUpdate();
+        PoseStorage.currentPose = follower.getPose();
 
         // 5) Telemetry
         panelsTelemetry.debug("State", pathState);
@@ -406,8 +408,8 @@ public class BlueTwelveBallAuto extends OpMode {
     // -----------------------------------------------------------------------------------------
 
 
-
     public static class Paths {
+
         public PathChain ShootPreset;
         public PathChain Pickup1;
         public PathChain Overflow;
@@ -492,7 +494,7 @@ public class BlueTwelveBallAuto extends OpMode {
             Shoot3 = follower.pathBuilder().addPath(
                             new BezierCurve(
                                     new Pose(8.000, 35.500),
-                                    new Pose(20.185, 48.501),
+                                    new Pose(40, 48.501),
                                     new Pose(3.191, 75.649),
                                     new Pose(52.419, 68.354),
                                     new Pose(32.928, 93.919),
