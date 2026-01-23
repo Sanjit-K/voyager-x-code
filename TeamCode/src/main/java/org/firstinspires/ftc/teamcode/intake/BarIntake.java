@@ -19,6 +19,15 @@ public class BarIntake {
         motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
     }
 
+    public String getStatus(){
+        if(motor.getPower() > 0){
+            return "in";
+        }else if(motor.getPower() < 0){
+            return "out";
+        }
+        return "off";
+    }
+
     public double getPower() {
         return power;
     }
