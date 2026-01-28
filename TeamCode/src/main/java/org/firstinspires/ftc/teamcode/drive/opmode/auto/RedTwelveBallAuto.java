@@ -22,6 +22,8 @@ import org.firstinspires.ftc.teamcode.shooting.Turret;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 
+import java.util.Objects;
+
 
 @Autonomous(name = "Red 12 Ball Auto", group = "Autonomous")
 @Configurable
@@ -56,17 +58,18 @@ public class RedTwelveBallAuto extends OpMode {
 
     private int[] order = null;
     private int currentOrderIndex = 0;
+    private String currentBarIntakeState = "stop";
 
 
     // -------------------- Config (tune in Panels) --------------------
     public static double SCAN_TURRET_DEG = 110;         // turret angle while scanning for tag
-    public static double SHOOT_DEG = 45;
-    public static double SHOOT_RPM = 2150;
+    public static double SHOOT_DEG = 43.5;
+    public static double SHOOT_RPM = 2140;
 
-    public static double PARK_SPEED = 0.50;         // follower speed scalar for park
+    public static double PARK_SPEED = 1.0;         // follower speed scalar for park
 
     // Outtake cadence
-    public static double OUTTAKE_DELAY_MS = 500;
+    public static double OUTTAKE_DELAY_MS =  700;
     private double targetAngle = SCAN_TURRET_DEG;
 
     // -------------------- State machine --------------------
@@ -74,10 +77,16 @@ public class RedTwelveBallAuto extends OpMode {
     private int lastState = -1;
     private final ElapsedTime stateTimer = new ElapsedTime();
 
+    // -- New delay logic --
+    private final ElapsedTime settleTimer = new ElapsedTime();
+    private boolean isSettling = false;
+    private static final long SETTLE_DELAY_MS = 300;
+
     private void setState(int s) {
         if (s != lastState) {
             lastState = s;
             stateTimer.reset();
+            isSettling = false; // Reset settling flag on state change
         }
         pathState = s;
     }
@@ -87,7 +96,7 @@ public class RedTwelveBallAuto extends OpMode {
     private boolean outtakeInProgress = false;
     private int outtakeAdvanceCount = 0;
     private double lastAdvanceTime = 0.0;
-    private int spinInterval = 0;
+    private int spinInterval = 60;
 
 
 
@@ -102,7 +111,7 @@ public class RedTwelveBallAuto extends OpMode {
         follower = Constants.createFollower(hardwareMap);
 
         // IMPORTANT: starting pose must match start of first path
-        follower.setStartingPose(new Pose(121.45, 123.14, 0));
+        follower.setStartingPose(new Pose(144-21.5, 122.5, Math.toRadians(0)));
 
         // Subsystems
         barIntake = new BarIntake(hardwareMap, "barIntake", true);
@@ -167,14 +176,17 @@ public class RedTwelveBallAuto extends OpMode {
 
         // 3) Update spindexer and run motif classification
         spindexer.update();
-        if (spindexer.isFull() && !outtakeInProgress){
-            spindexer.setShootIndex(1);
+        if ((spindexer.isFull() && !outtakeInProgress) && follower.getPose().getX() < 132){
             spinInterval++;
-            if (spinInterval > 40 && spinInterval < 60)
-                barIntake.spinOuttake();
+            if ((spinInterval > 30 && spinInterval < 50))
+                currentBarIntakeState = "out";
             else {
-                barIntake.stop();
+                currentBarIntakeState = "stop";
             }
+        }
+
+        if(follower.getPose().getX() > 132 || pathState == 2 || pathState == 6 || pathState == 9){
+            currentBarIntakeState = "in";
         }
 
         // 4) Run state machine
@@ -189,6 +201,13 @@ public class RedTwelveBallAuto extends OpMode {
         panelsTelemetry.debug("Outtake", outtakeInProgress);
         panelsTelemetry.debug("Balls", spindexer.getBalls());
         panelsTelemetry.debug("Scanned Tag ID", scannedTagId);
+        if(currentBarIntakeState.equals("in")){
+            barIntake.spinIntake();
+        }else if(currentBarIntakeState.equals("out")){
+            barIntake.spinIntake();
+        }else{
+            barIntake.stop();
+        }
 
 
 
@@ -237,12 +256,10 @@ public class RedTwelveBallAuto extends OpMode {
             // 1) Wait for order (if any) and then wait for follower to finish
             // ------------------------------------------------------------
             case 1:
-                if (!follower.isBusy()) {
-                    if (stateTimer.milliseconds() > 2000){
-                        startOuttakeRoutine();
-                        setState(2);
-                        currentOrderIndex = 1;
-                    }
+                if (!follower.isBusy() && stateTimer.milliseconds() > 2000) {
+                    startOuttakeRoutine();
+                    setState(2);
+                    currentOrderIndex = 1;
                 }
                 break;
 
@@ -262,15 +279,21 @@ public class RedTwelveBallAuto extends OpMode {
                     follower.followPath(paths.Overflow);
                     setState(4);
                 }
-                break;
 
-            // ------------------------------------------------------------
-            // 3) After pickup1, prepare shoot1
-            // ------------------------------------------------------------
+                // ------------------------------------------------------------
+                // 3) After pickup1, prepare shoot1
+                // ------------------------------------------------------------
             case 4:
-                if (!follower.isBusy()  && stateTimer.milliseconds() > 2500) {
-                    follower.followPath(paths.Shoot1);
-                    setState(5);
+                if (!follower.isBusy()) {
+                    if (!isSettling) {
+                        isSettling = true;
+                        settleTimer.reset();
+                    } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
+                        spinInterval = 10;
+                        follower.followPath(paths.Shoot1);
+                        spindexer.setShootIndex(order[currentOrderIndex]);
+                        setState(5);
+                    }
                 }
                 break;
 
@@ -279,9 +302,14 @@ public class RedTwelveBallAuto extends OpMode {
             // ------------------------------------------------------------
             case 5:
                 if (!follower.isBusy()) {
-                    startOuttakeRoutine();
-                    setState(6);
-                    currentOrderIndex = 2;
+                    if (!isSettling) {
+                        isSettling = true;
+                        settleTimer.reset();
+                    } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
+                        startOuttakeRoutine();
+                        setState(6);
+                        currentOrderIndex = 2;
+                    }
                 }
                 break;
 
@@ -301,8 +329,15 @@ public class RedTwelveBallAuto extends OpMode {
             // ------------------------------------------------------------
             case 7:
                 if (!follower.isBusy()) {
-                    follower.followPath(paths.Shoot2);
-                    setState(8);
+                    if (!isSettling) {
+                        isSettling = true;
+                        settleTimer.reset();
+                    } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
+                        spinInterval = 10;
+                        follower.followPath(paths.Shoot2);
+                        spindexer.setShootIndex(order[currentOrderIndex]);
+                        setState(8);
+                    }
                 }
                 break;
 
@@ -310,10 +345,15 @@ public class RedTwelveBallAuto extends OpMode {
             // 8) After shoot2 path completes, start outtake
             // ------------------------------------------------------------
             case 8:
-                if (!follower.isBusy()) {
-                    startOuttakeRoutine();
-                    setState(9);
-                    currentOrderIndex = 3;
+                if (!follower.isBusy() && !Objects.equals(barIntake.getStatus(), "out") ) {
+                    if (!isSettling) {
+                        isSettling = true;
+                        settleTimer.reset();
+                    } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
+                        startOuttakeRoutine();
+                        setState(9);
+                        currentOrderIndex = 3;
+                    }
                 }
                 break;
 
@@ -331,9 +371,16 @@ public class RedTwelveBallAuto extends OpMode {
             // 10) After pickup3, shoot3
             // ------------------------------------------------------------
             case 10:
-                if (!follower.isBusy()) {
-                    follower.followPath(paths.Shoot3);
-                    setState(11);
+                if (!follower.isBusy()){
+                    if (!isSettling) {
+                        isSettling = true;
+                        settleTimer.reset();
+                    } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
+                        spinInterval = 0;
+                        follower.followPath(paths.Shoot3);
+                        spindexer.setShootIndex(order[currentOrderIndex]);
+                        setState(11);
+                    }
                 }
                 break;
 
@@ -341,9 +388,14 @@ public class RedTwelveBallAuto extends OpMode {
             // 11) After shoot3 path completes, start outtake
             // ------------------------------------------------------------
             case 11:
-                if (!follower.isBusy()) {
-                    startOuttakeRoutine();
-                    setState(12);
+                if (!follower.isBusy() && !Objects.equals(barIntake.getStatus(), "out")) {
+                    if (!isSettling) {
+                        isSettling = true;
+                        settleTimer.reset();
+                    } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
+                        startOuttakeRoutine();
+                        setState(12);
+                    }
                 }
                 break;
 
@@ -374,6 +426,7 @@ public class RedTwelveBallAuto extends OpMode {
 
         // Step 1: Turn on transfer wheel and turret wheel
         turret.transferOn();
+        currentBarIntakeState = "stop";
 
         // Step 2: Set kicker servo to kick
         kickerServo.kick();
@@ -395,7 +448,7 @@ public class RedTwelveBallAuto extends OpMode {
                 // All 3 advanceIntake calls completed, set kicker back to normal
                 kickerServo.normal();
                 spindexer.clearTracking();
-                barIntake.spinIntake();
+                currentBarIntakeState = "in";
                 spindexer.setIntakeIndex(0);
                 spinInterval = 0;
                 outtakeInProgress = false;
@@ -409,8 +462,8 @@ public class RedTwelveBallAuto extends OpMode {
     // -----------------------------------------------------------------------------------------
 
 
-
     public static class Paths {
+
         public PathChain ShootPreset;
         public PathChain Pickup1;
         public PathChain Overflow;
@@ -424,93 +477,91 @@ public class RedTwelveBallAuto extends OpMode {
         public Paths(Follower follower) {
             ShootPreset = follower.pathBuilder().addPath(
                             new BezierLine(
-                                    new Pose(121.500, 123.000),
-
-                                    new Pose(106.000, 108.000)
+                                    new Pose(144-21.500, 122.500),
+                                    new Pose(144-38.000, 108.000)
                             )
-                    ).setConstantHeadingInterpolation(0)
+                    ).setConstantHeadingInterpolation(Math.toRadians(0))
 
                     .build();
 
             Pickup1 = follower.pathBuilder().addPath(
                             new BezierCurve(
-                                    new Pose(106.000, 108.000),
-                                    new Pose(76.500, 79.000),
-                                    new Pose(130.000, 84.500)
+                                    new Pose(144-38.000, 108.000),
+                                    new Pose(144-67.500, 79.000),
+                                    new Pose(144-13.000, 84.500)
                             )
-                    ).setConstantHeadingInterpolation(0)
+                    ).setConstantHeadingInterpolation(Math.toRadians(0))
+
                     .build();
 
             Overflow = follower.pathBuilder().addPath(
                             new BezierCurve(
-                                    new Pose(130.000, 84.500),
-                                    new Pose(107.000, 76.000),
-                                    new Pose(128.500, 76.000)
+                                    new Pose(144-13.000, 84.500),
+                                    new Pose(144-37.000, 76.000),
+                                    new Pose(144-14.500, 76.000)
                             )
-                    ).setConstantHeadingInterpolation(0)
+                    ).setConstantHeadingInterpolation(Math.toRadians(0))
 
                     .build();
 
             Shoot1 = follower.pathBuilder().addPath(
                             new BezierLine(
-                                    new Pose(128.500, 76.000),
-
-                                    new Pose(106.000, 108.000)
+                                    new Pose(144-14.500, 76.000),
+                                    new Pose(144-38.000, 108.000)
                             )
-                    ).setConstantHeadingInterpolation(0)
+                    ).setConstantHeadingInterpolation(Math.toRadians(0))
 
                     .build();
 
             Pickup2 = follower.pathBuilder().addPath(
                             new BezierCurve(
-                                    new Pose(106.000, 108.000),
-                                    new Pose(56.000, 55.000),
-                                    new Pose(136.500, 59.500)
+                                    new Pose(144-38.000, 108.000),
+                                    new Pose(144-88.000, 55.000),
+                                    new Pose(144-5.500, 59.500)
                             )
-                    ).setConstantHeadingInterpolation(0)
+                    ).setConstantHeadingInterpolation(Math.toRadians(0))
 
                     .build();
 
             Shoot2 = follower.pathBuilder().addPath(
                             new BezierCurve(
-                                    new Pose(136.000, 59.500),
-                                    new Pose(83.000, 52.000),
-                                    new Pose(106.000, 108.000)
+                                    new Pose(144-5.500, 59.500),
+                                    new Pose(144-61.000, 52.000),
+                                    new Pose(144-38.000, 108.000)
                             )
-                    ).setConstantHeadingInterpolation(0)
+                    ).setConstantHeadingInterpolation(Math.toRadians(0))
 
                     .build();
 
             Pickup3 = follower.pathBuilder().addPath(
                             new BezierCurve(
-                                    new Pose(106.000, 108.000),
-                                    new Pose(58.000, 27.500),
-                                    new Pose(136.500, 35.500)
+                                    new Pose(144-38.000, 108.000),
+                                    new Pose(144-86.000, 27.500),
+                                    new Pose(144-5.500, 35.500)
                             )
-                    ).setConstantHeadingInterpolation(0)
+                    ).setConstantHeadingInterpolation(Math.toRadians(0))
 
                     .build();
 
             Shoot3 = follower.pathBuilder().addPath(
                             new BezierCurve(
-                                    new Pose(136.000, 35.500),
-                                    new Pose(123.815, 48.501),
-                                    new Pose(140.809, 75.649),
-                                    new Pose(91.581, 68.354),
-                                    new Pose(111.072, 93.919),
-                                    new Pose(106.000, 108.000)
+                                    new Pose(144-5.500, 35.500),
+                                    new Pose(144-40, 48.501),
+                                    new Pose(144-3.191, 75.649),
+                                    new Pose(144-52.419, 68.354),
+                                    new Pose(144-32.928, 93.919),
+                                    new Pose(144-38.000, 108.000)
                             )
-                    ).setConstantHeadingInterpolation(0)
+                    ).setConstantHeadingInterpolation(Math.toRadians(0))
 
                     .build();
 
             Park = follower.pathBuilder().addPath(
                             new BezierLine(
-                                    new Pose(106.000, 108.000),
-
-                                    new Pose(106.000, 130.000)
+                                    new Pose(144-38.000, 108.000),
+                                    new Pose(144-38.000, 75.000)
                             )
-                    ).setConstantHeadingInterpolation(0)
+                    ).setConstantHeadingInterpolation(Math.toRadians(0))
 
                     .build();
         }

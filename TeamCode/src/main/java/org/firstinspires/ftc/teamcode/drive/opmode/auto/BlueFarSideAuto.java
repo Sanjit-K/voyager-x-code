@@ -49,6 +49,7 @@ public class BlueFarSideAuto extends OpMode {
         if (s != lastState) {
             lastState = s;
             stateTimer.reset();
+            isSettling = false; // Reset settling flag on state change
         }
         pathState = s;
     }
@@ -57,13 +58,14 @@ public class BlueFarSideAuto extends OpMode {
     private final ElapsedTime outtakeTimer = new ElapsedTime();
     private boolean outtakeInProgress = false;
     private int outtakeAdvanceCount = 0;
-    private double lastAdvanceTimeMs = 0.0;
+    private double lastAdvanceTime = 0.0;
 
     // You can tune this; in your excerpt you used ~650-700ms depending on shot
     public static double OUTTAKE_DELAY_MS = 700;
 
     // -------------------- Loop timing --------------------
     public static int LOOP_WAIT_MS = 50;
+    private boolean isSettling = false;
 
     // -------------------- Dynamic destinations --------------------
     // Park pose (same as your original far-side code)
@@ -81,15 +83,8 @@ public class BlueFarSideAuto extends OpMode {
     // -------------------- “Auto shoot power” equivalents in this framework --------------------
     // In your OpMode auto, shooter power is “RPM” + turret angle
     public static double currentRPM = 3250;
-    public static double targetAngleDeg = 289;
+    public static double targetAngleDeg = 287;
 
-    // Optional: a target pose if you use turret tracking (left here for parity)
-    private final Pose targetPose = new Pose(0, 144, 0);
-
-    // -------------------- Volley / shot routine --------------------
-    // In this framework, “volley” is your outtake routine (kick + advance x3 with delays).
-    // If you need different orders, you’d implement spindexer indexing here.
-    private int currentVolley = 0;
 
     // ------------------------------------------------------------------------
     // init / start / loop (OpMode style)
@@ -142,7 +137,6 @@ public class BlueFarSideAuto extends OpMode {
         stateTimer.reset();
 
         outtakeInProgress = false;
-        currentVolley = 0;
 
         turret.on();
         barIntake.spinIntake();
@@ -196,38 +190,36 @@ public class BlueFarSideAuto extends OpMode {
         outtakeInProgress = true;
         outtakeAdvanceCount = 0;
         outtakeTimer.reset();
-        lastAdvanceTimeMs = 0.0;
+        lastAdvanceTime = 0;
 
-        turret.on();
+
+        // Step 1: Turn on transfer wheel and turret wheel
         turret.transferOn();
 
+        // Step 2: Set kicker servo to kick
         kickerServo.kick();
-
-        // First advance immediately
-        spindexer.advanceIntake();
-        outtakeAdvanceCount++;
-        lastAdvanceTimeMs = outtakeTimer.milliseconds();
+        lastAdvanceTime = outtakeTimer.milliseconds();
     }
 
     private void handleOuttakeRoutine() {
-        double now = outtakeTimer.milliseconds();
+        double currentTime = outtakeTimer.milliseconds();
 
-        if (outtakeAdvanceCount < 3) {
-            if (now - lastAdvanceTimeMs >= OUTTAKE_DELAY_MS) {
-                spindexer.advanceIntake();
+        // Check if it's time for the next advanceIntake call
+        if (outtakeAdvanceCount < 2) {
+            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS) {
+                spindexer.advanceShoot();
                 outtakeAdvanceCount++;
-                lastAdvanceTimeMs = now;
+                lastAdvanceTime = currentTime;
             }
-            return;
-        }
-
-        // After 3 advances, wait one more delay then finish
-        if (now - lastAdvanceTimeMs >= OUTTAKE_DELAY_MS) {
-            kickerServo.normal();
-            spindexer.clearTracking();
-            turret.transferOff();
-            barIntake.spinIntake();
-            outtakeInProgress = false;
+        } else {
+            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS) {
+                // All 3 advanceIntake calls completed, set kicker back to normal
+                kickerServo.normal();
+                spindexer.clearTracking();
+                barIntake.spinIntake();
+                spindexer.setIntakeIndex(0);
+                outtakeInProgress = false;
+            }
         }
     }
 
@@ -250,7 +242,8 @@ public class BlueFarSideAuto extends OpMode {
             case 0:
                 // Turret tracked-angle helpers were removed from Turret.
                 // Treat the turret as "ready" when the shooter is up to speed.
-                if (turret.getShooterRPM() > 3300) {
+                spindexer.setShootIndex(1);
+                if (turret.getShooterRPM() > 3400) {
                     startOuttakeRoutine();
                     setState(1);
                 }
@@ -269,8 +262,9 @@ public class BlueFarSideAuto extends OpMode {
             // Cycle 1: pickup1 -> short wait -> shoot1 -> volley -> pickup2
             // ------------------------------------------------------------
             case 2:
-                if (!follower.isBusy()) {
+                if (!follower.isBusy() && stateTimer.milliseconds() > 2500) {
                     // Go to shoot1
+                    spindexer.setShootIndex(1);
                     follower.followPath(paths.shoot1);
                     setState(3);
                 }
@@ -297,7 +291,8 @@ public class BlueFarSideAuto extends OpMode {
             // Cycle 2: pickup2 -> wait -> shoot2 -> volley -> path5
             // ------------------------------------------------------------
             case 5:
-                if (!follower.isBusy()) {
+                if (!follower.isBusy() && stateTimer.milliseconds() > 2500) {
+                    spindexer.setShootIndex(1);
                     follower.followPath(paths.shoot2);
                     setState(6);
                 }
@@ -306,7 +301,6 @@ public class BlueFarSideAuto extends OpMode {
             case 6:
                 if (!follower.isBusy()) {
                     // Tune for shoot2 position
-
                     startOuttakeRoutine();
                     setState(7);
                 }
@@ -326,18 +320,12 @@ public class BlueFarSideAuto extends OpMode {
             // ------------------------------------------------------------
             case 8:
                 if (!follower.isBusy()) {
-                    // Priority 1: time-based exit
-                    if (matchTimer.seconds() > 25.0) {
-                        paths.buildToPark(follower, follower.getPose());
-                        follower.followPath(paths.toPark);
-                        setState(98);
-                        break;
-                    }
 
                     if (waitTimer.milliseconds() < LOOP_WAIT_MS) return;
                     // Priority 2: if full, go shoot, then return to loop
                     if (spindexer.getBalls() > 0) {
                         paths.buildToShoot(follower, follower.getPose());
+                        spindexer.setShootIndex(1);
                         follower.followPath(paths.toShoot);
                         setState(90);
                         break;
@@ -352,13 +340,6 @@ public class BlueFarSideAuto extends OpMode {
 
             case 9:
                 if (!follower.isBusy()) {
-                    // Priority 1: time-based exit
-                    if (matchTimer.seconds() > 25.0) {
-                        paths.buildToPark(follower, follower.getPose());
-                        follower.followPath(paths.toPark);
-                        setState(98);
-                        break;
-                    }
 
                     if (waitTimer.milliseconds() < LOOP_WAIT_MS) return;
                     // Priority 2: if full, go shoot, then return to loop
@@ -423,7 +404,6 @@ public class BlueFarSideAuto extends OpMode {
 
         // Dynamic paths (built at runtime)
         public PathChain toShoot;
-        public PathChain toPark;
 
         public Paths(Follower follower) {
             pickup1 = follower
@@ -469,7 +449,7 @@ public class BlueFarSideAuto extends OpMode {
                     .pathBuilder()
                     .addPath(new BezierLine(
                             new Pose(61.000, 14.000),
-                            new Pose(10.000, 12.851)
+                            new Pose(10.000, 18)
                     ))
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
@@ -477,19 +457,19 @@ public class BlueFarSideAuto extends OpMode {
             path55 = follower
                     .pathBuilder()
                     .addPath(new BezierLine(
-                            new Pose(9.000+16, 12.851),
-                            new Pose(10.000, 12.851)
+                            new Pose(25.00, 24.00),
+                            new Pose(10.000, 18)
+
                     ))
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
 
 
-
             path6 = follower
                     .pathBuilder()
                     .addPath(new BezierLine(
-                            new Pose(10.000, 12.851),
-                            new Pose(60.733, 13.731)
+                            new Pose(10.000, 18),
+                            new Pose(25, 14.000)
                     ))
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
@@ -499,14 +479,6 @@ public class BlueFarSideAuto extends OpMode {
             toShoot = follower.pathBuilder()
                     .addPath(new BezierLine(currentPose, SHOOT_POSE))
                     .setLinearHeadingInterpolation(currentPose.getHeading(), SHOOT_POSE.getHeading())
-                    .build();
-        }
-
-        public void buildToPark(Follower follower, Pose currentPose) {
-            toPark = follower.pathBuilder()
-                    .addPath(new BezierLine(currentPose, PARK_POSE))
-                    .addPath(new BezierLine(currentPose, PARK_POSE))
-                    .setLinearHeadingInterpolation(currentPose.getHeading(), PARK_POSE.getHeading())
                     .build();
         }
     }

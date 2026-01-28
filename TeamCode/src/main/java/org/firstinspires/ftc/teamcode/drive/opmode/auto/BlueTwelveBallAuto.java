@@ -248,12 +248,10 @@ public class BlueTwelveBallAuto extends OpMode {
             // 1) Wait for order (if any) and then wait for follower to finish
             // ------------------------------------------------------------
             case 1:
-                if (!follower.isBusy()) {
-                    if (stateTimer.milliseconds() > 2000){
-                        startOuttakeRoutine();
-                        setState(2);
-                        currentOrderIndex = 1;
-                    }
+                if (!follower.isBusy() && stateTimer.milliseconds() > 2000) {
+                    startOuttakeRoutine();
+                    setState(2);
+                    currentOrderIndex = 1;
                 }
                 break;
 
@@ -281,6 +279,7 @@ public class BlueTwelveBallAuto extends OpMode {
                 if (!follower.isBusy()  && stateTimer.milliseconds() > 2500) {
                     spinInterval = 20;
                     follower.followPath(paths.Shoot1);
+                    spindexer.setShootIndex(order[currentOrderIndex]);
                     setState(5);
                 }
                 break;
@@ -319,6 +318,7 @@ public class BlueTwelveBallAuto extends OpMode {
                 if (!follower.isBusy()  && stateTimer.milliseconds() > 2500) {
                     spinInterval = 20;
                     follower.followPath(paths.Shoot2);
+                    spindexer.setShootIndex(order[currentOrderIndex]);
                     setState(8);
                 }
                 break;
@@ -357,6 +357,7 @@ public class BlueTwelveBallAuto extends OpMode {
                 if (!follower.isBusy()  && stateTimer.milliseconds() > 2500){
                     spinInterval = 0;
                     follower.followPath(paths.Shoot3);
+                    spindexer.setShootIndex(order[currentOrderIndex]);
                     setState(11);
                 }
                 break;
@@ -464,7 +465,7 @@ public class BlueTwelveBallAuto extends OpMode {
                             new BezierCurve(
                                     new Pose(38.000, 108.000),
                                     new Pose(67.500, 79.000),
-                                    new Pose(13.800, 84.500)
+                                    new Pose(13.000, 84.500)
                             )
                     ).setConstantHeadingInterpolation(Math.toRadians(180))
 
@@ -472,9 +473,9 @@ public class BlueTwelveBallAuto extends OpMode {
 
             Overflow = follower.pathBuilder().addPath(
                             new BezierCurve(
-                                    new Pose(13.800, 84.500),
+                                    new Pose(13.000, 84.500),
                                     new Pose(37.000, 76.000),
-                                    new Pose(15.000, 76.000)
+                                    new Pose(14.500, 76.000)
                             )
                     ).setConstantHeadingInterpolation(Math.toRadians(180))
 
@@ -482,7 +483,7 @@ public class BlueTwelveBallAuto extends OpMode {
 
             Shoot1 = follower.pathBuilder().addPath(
                             new BezierLine(
-                                    new Pose(15.000, 76.000),
+                                    new Pose(14.500, 76.000),
                                     new Pose(38.000, 108.000)
                             )
                     ).setConstantHeadingInterpolation(Math.toRadians(180))
@@ -493,7 +494,7 @@ public class BlueTwelveBallAuto extends OpMode {
                             new BezierCurve(
                                     new Pose(38.000, 108.000),
                                     new Pose(88.000, 55.000),
-                                    new Pose(6.500, 59.500)
+                                    new Pose(5.500, 59.500)
                             )
                     ).setConstantHeadingInterpolation(Math.toRadians(180))
 
@@ -501,7 +502,7 @@ public class BlueTwelveBallAuto extends OpMode {
 
             Shoot2 = follower.pathBuilder().addPath(
                             new BezierCurve(
-                                    new Pose(6.500, 59.500),
+                                    new Pose(5.500, 59.500),
                                     new Pose(61.000, 52.000),
                                     new Pose(38.000, 108.000)
                             )
@@ -513,7 +514,7 @@ public class BlueTwelveBallAuto extends OpMode {
                             new BezierCurve(
                                     new Pose(38.000, 108.000),
                                     new Pose(86.000, 27.500),
-                                    new Pose(6.500, 35.500)
+                                    new Pose(5.500, 35.500)
                             )
                     ).setConstantHeadingInterpolation(Math.toRadians(180))
 
@@ -521,7 +522,7 @@ public class BlueTwelveBallAuto extends OpMode {
 
             Shoot3 = follower.pathBuilder().addPath(
                             new BezierCurve(
-                                    new Pose(6.500, 35.500),
+                                    new Pose(5.500, 35.500),
                                     new Pose(40, 48.501),
                                     new Pose(3.191, 75.649),
                                     new Pose(52.419, 68.354),
