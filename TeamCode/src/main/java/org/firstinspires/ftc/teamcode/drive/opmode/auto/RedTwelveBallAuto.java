@@ -69,7 +69,7 @@ public class RedTwelveBallAuto extends OpMode {
     public static double PARK_SPEED = 1.0;         // follower speed scalar for park
 
     // Outtake cadence
-    public static double OUTTAKE_DELAY_MS =  700;
+    public static double OUTTAKE_DELAY_MS =  650;
     private double targetAngle = SCAN_TURRET_DEG;
 
     // -------------------- State machine --------------------
@@ -80,7 +80,7 @@ public class RedTwelveBallAuto extends OpMode {
     // -- New delay logic --
     private final ElapsedTime settleTimer = new ElapsedTime();
     private boolean isSettling = false;
-    private static final long SETTLE_DELAY_MS = 300;
+    private static final long SETTLE_DELAY_MS = 250;
 
     private void setState(int s) {
         if (s != lastState) {
@@ -146,8 +146,6 @@ public class RedTwelveBallAuto extends OpMode {
         kickerServo.normal();
         turret.setShooterRPM(SHOOT_RPM);
 
-
-
         panelsTelemetry.debug("Status", "Initialized");
         panelsTelemetry.update(telemetry);
     }
@@ -162,6 +160,7 @@ public class RedTwelveBallAuto extends OpMode {
         turret.on();
         turret.transferOn();
         turret.setShooterRPM(SHOOT_RPM);
+        spindexer.setShootIndex(1);
     }
 
     @Override
@@ -176,17 +175,17 @@ public class RedTwelveBallAuto extends OpMode {
 
         // 3) Update spindexer and run motif classification
         spindexer.update();
-        if ((spindexer.isFull() && !outtakeInProgress) && follower.getPose().getX() < 132){
+        if (spindexer.isFull() && !outtakeInProgress && follower.getPose().getX() < 132){
             spinInterval++;
-            if ((spinInterval > 30 && spinInterval < 50))
+            if ((spinInterval > 30 && spinInterval < 40))
                 currentBarIntakeState = "out";
             else {
                 currentBarIntakeState = "stop";
             }
         }
 
-        if(follower.getPose().getX() > 132 || pathState == 2 || pathState == 6 || pathState == 9){
-            currentBarIntakeState = "in";
+        if (follower.getPose().getX() < 124 && !outtakeInProgress && (pathState == 5 || pathState == 8 || pathState == 11)){
+            if (order != null) spindexer.setShootIndex(order[currentOrderIndex]);
         }
 
         // 4) Run state machine
@@ -237,9 +236,6 @@ public class RedTwelveBallAuto extends OpMode {
         // Global check for spindexer full status
         if (order != null && currentOrderIndex < order.length && !outtakeInProgress) {
             targetAngle = SHOOT_DEG;
-            if (spindexer.isFull()) {
-                spindexer.setShootIndex(order[currentOrderIndex]);
-            }
         }
 
         switch (pathState) {
@@ -291,7 +287,6 @@ public class RedTwelveBallAuto extends OpMode {
                     } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
                         spinInterval = 10;
                         follower.followPath(paths.Shoot1);
-                        spindexer.setShootIndex(order[currentOrderIndex]);
                         setState(5);
                     }
                 }
@@ -335,7 +330,6 @@ public class RedTwelveBallAuto extends OpMode {
                     } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
                         spinInterval = 10;
                         follower.followPath(paths.Shoot2);
-                        spindexer.setShootIndex(order[currentOrderIndex]);
                         setState(8);
                     }
                 }
@@ -345,7 +339,7 @@ public class RedTwelveBallAuto extends OpMode {
             // 8) After shoot2 path completes, start outtake
             // ------------------------------------------------------------
             case 8:
-                if (!follower.isBusy() && !Objects.equals(barIntake.getStatus(), "out") ) {
+                if (!follower.isBusy() && !Objects.equals(barIntake.getStatus(), "out")) {
                     if (!isSettling) {
                         isSettling = true;
                         settleTimer.reset();
@@ -378,7 +372,6 @@ public class RedTwelveBallAuto extends OpMode {
                     } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
                         spinInterval = 0;
                         follower.followPath(paths.Shoot3);
-                        spindexer.setShootIndex(order[currentOrderIndex]);
                         setState(11);
                     }
                 }

@@ -58,6 +58,7 @@ public class BlueTwelveBallAuto extends OpMode {
 
     private int[] order = null;
     private int currentOrderIndex = 0;
+    private String currentBarIntakeState = "stop";
 
 
     // -------------------- Config (tune in Panels) --------------------
@@ -65,10 +66,10 @@ public class BlueTwelveBallAuto extends OpMode {
     public static double SHOOT_DEG = 318.8;
     public static double SHOOT_RPM = 2140;
 
-    public static double PARK_SPEED = 0.90;         // follower speed scalar for park
+    public static double PARK_SPEED = 1.0;         // follower speed scalar for park
 
     // Outtake cadence
-    public static double OUTTAKE_DELAY_MS =  700;
+    public static double OUTTAKE_DELAY_MS =  650;
     private double targetAngle = SCAN_TURRET_DEG;
 
     // -------------------- State machine --------------------
@@ -79,7 +80,7 @@ public class BlueTwelveBallAuto extends OpMode {
     // -- New delay logic --
     private final ElapsedTime settleTimer = new ElapsedTime();
     private boolean isSettling = false;
-    private static final long SETTLE_DELAY_MS = 300;
+    private static final long SETTLE_DELAY_MS = 250;
 
     private void setState(int s) {
         if (s != lastState) {
@@ -95,7 +96,7 @@ public class BlueTwelveBallAuto extends OpMode {
     private boolean outtakeInProgress = false;
     private int outtakeAdvanceCount = 0;
     private double lastAdvanceTime = 0.0;
-    private int spinInterval = 0;
+    private int spinInterval = 60;
 
 
 
@@ -145,8 +146,6 @@ public class BlueTwelveBallAuto extends OpMode {
         kickerServo.normal();
         turret.setShooterRPM(SHOOT_RPM);
 
-
-
         panelsTelemetry.debug("Status", "Initialized");
         panelsTelemetry.update(telemetry);
     }
@@ -161,6 +160,7 @@ public class BlueTwelveBallAuto extends OpMode {
         turret.on();
         turret.transferOn();
         turret.setShooterRPM(SHOOT_RPM);
+        spindexer.setShootIndex(1);
     }
 
     @Override
@@ -175,17 +175,17 @@ public class BlueTwelveBallAuto extends OpMode {
 
         // 3) Update spindexer and run motif classification
         spindexer.update();
-        if ((spindexer.isFull() && !outtakeInProgress) || pathState == 5 || pathState == 8 || pathState == 11){
+        if (spindexer.isFull() && !outtakeInProgress && follower.getPose().getX() > 12){
             spinInterval++;
-            if (spinInterval > 50 && spinInterval < 53)
-                barIntake.spinOuttake();
-            else if(spinInterval<50){
-                barIntake.spinIntake();
-            }
-
+            if ((spinInterval > 30 && spinInterval < 40))
+                currentBarIntakeState = "out";
             else {
-                barIntake.stop();
+                currentBarIntakeState = "stop";
             }
+        }
+
+        if (follower.getPose().getX() > 20 && !outtakeInProgress && (pathState == 5 || pathState == 8 || pathState == 11)){
+            if (order != null) spindexer.setShootIndex(order[currentOrderIndex]);
         }
 
         // 4) Run state machine
@@ -200,6 +200,13 @@ public class BlueTwelveBallAuto extends OpMode {
         panelsTelemetry.debug("Outtake", outtakeInProgress);
         panelsTelemetry.debug("Balls", spindexer.getBalls());
         panelsTelemetry.debug("Scanned Tag ID", scannedTagId);
+        if(currentBarIntakeState.equals("in")){
+            barIntake.spinIntake();
+        }else if(currentBarIntakeState.equals("out")){
+            barIntake.spinIntake();
+        }else{
+            barIntake.stop();
+        }
 
 
 
@@ -229,9 +236,6 @@ public class BlueTwelveBallAuto extends OpMode {
         // Global check for spindexer full status
         if (order != null && currentOrderIndex < order.length && !outtakeInProgress) {
             targetAngle = SHOOT_DEG;
-            if (spindexer.isFull()) {
-                spindexer.setShootIndex(order[currentOrderIndex]);
-            }
         }
 
         switch (pathState) {
@@ -272,15 +276,19 @@ public class BlueTwelveBallAuto extends OpMode {
                     setState(4);
                 }
 
-            // ------------------------------------------------------------
-            // 3) After pickup1, prepare shoot1
-            // ------------------------------------------------------------
+                // ------------------------------------------------------------
+                // 3) After pickup1, prepare shoot1
+                // ------------------------------------------------------------
             case 4:
-                if (!follower.isBusy()  && stateTimer.milliseconds() > 2500) {
-                    spinInterval = 20;
-                    follower.followPath(paths.Shoot1);
-                    spindexer.setShootIndex(order[currentOrderIndex]);
-                    setState(5);
+                if (!follower.isBusy()) {
+                    if (!isSettling) {
+                        isSettling = true;
+                        settleTimer.reset();
+                    } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
+                        spinInterval = 10;
+                        follower.followPath(paths.Shoot1);
+                        setState(5);
+                    }
                 }
                 break;
 
@@ -315,11 +323,15 @@ public class BlueTwelveBallAuto extends OpMode {
             // 7) After overflow, shoot2
             // ------------------------------------------------------------
             case 7:
-                if (!follower.isBusy()  && stateTimer.milliseconds() > 2500) {
-                    spinInterval = 20;
-                    follower.followPath(paths.Shoot2);
-                    spindexer.setShootIndex(order[currentOrderIndex]);
-                    setState(8);
+                if (!follower.isBusy()) {
+                    if (!isSettling) {
+                        isSettling = true;
+                        settleTimer.reset();
+                    } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
+                        spinInterval = 10;
+                        follower.followPath(paths.Shoot2);
+                        setState(8);
+                    }
                 }
                 break;
 
@@ -327,7 +339,7 @@ public class BlueTwelveBallAuto extends OpMode {
             // 8) After shoot2 path completes, start outtake
             // ------------------------------------------------------------
             case 8:
-                if (!follower.isBusy() && !Objects.equals(barIntake.getStatus(), "out") ) {
+                if (!follower.isBusy() && !Objects.equals(barIntake.getStatus(), "out")) {
                     if (!isSettling) {
                         isSettling = true;
                         settleTimer.reset();
@@ -353,12 +365,15 @@ public class BlueTwelveBallAuto extends OpMode {
             // 10) After pickup3, shoot3
             // ------------------------------------------------------------
             case 10:
-
-                if (!follower.isBusy()  && stateTimer.milliseconds() > 2500){
-                    spinInterval = 0;
-                    follower.followPath(paths.Shoot3);
-                    spindexer.setShootIndex(order[currentOrderIndex]);
-                    setState(11);
+                if (!follower.isBusy()){
+                    if (!isSettling) {
+                        isSettling = true;
+                        settleTimer.reset();
+                    } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
+                        spinInterval = 0;
+                        follower.followPath(paths.Shoot3);
+                        setState(11);
+                    }
                 }
                 break;
 
@@ -404,6 +419,7 @@ public class BlueTwelveBallAuto extends OpMode {
 
         // Step 1: Turn on transfer wheel and turret wheel
         turret.transferOn();
+        currentBarIntakeState = "stop";
 
         // Step 2: Set kicker servo to kick
         kickerServo.kick();
@@ -425,7 +441,7 @@ public class BlueTwelveBallAuto extends OpMode {
                 // All 3 advanceIntake calls completed, set kicker back to normal
                 kickerServo.normal();
                 spindexer.clearTracking();
-                barIntake.spinIntake();
+                currentBarIntakeState = "in";
                 spindexer.setIntakeIndex(0);
                 spinInterval = 0;
                 outtakeInProgress = false;
