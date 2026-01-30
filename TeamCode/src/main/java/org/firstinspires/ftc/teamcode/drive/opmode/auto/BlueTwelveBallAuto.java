@@ -68,8 +68,10 @@ public class BlueTwelveBallAuto extends OpMode {
 
     public static double PARK_SPEED = 1.0;         // follower speed scalar for park
 
+    private final ElapsedTime scanTimer = new ElapsedTime();
+
     // Outtake cadence
-    public static double OUTTAKE_DELAY_MS =  650;
+    public static double OUTTAKE_DELAY_MS =  400;
     private double targetAngle = SCAN_TURRET_DEG;
 
     // -------------------- State machine --------------------
@@ -81,6 +83,8 @@ public class BlueTwelveBallAuto extends OpMode {
     private final ElapsedTime settleTimer = new ElapsedTime();
     private boolean isSettling = false;
     private static final long SETTLE_DELAY_MS = 250;
+    boolean fallback = false;
+
 
     private void setState(int s) {
         if (s != lastState) {
@@ -156,6 +160,8 @@ public class BlueTwelveBallAuto extends OpMode {
         setState(0);
 
         stateTimer.reset();
+        scanTimer.reset();
+
 
         turret.on();
         turret.transferOn();
@@ -230,6 +236,11 @@ public class BlueTwelveBallAuto extends OpMode {
             if (result != null && result.getFiducialResults() != null && !result.getFiducialResults().isEmpty()) {
                 scannedTagId = result.getFiducialResults().get(0).getFiducialId();
                 order = getMotifForTag(scannedTagId);
+            } else if (scanTimer.milliseconds() > 1700) {
+                // Timeout: default to tag 21
+                fallback = true;
+                scannedTagId = 21;
+                order = getMotifForTag(scannedTagId);
             }
         }
 
@@ -263,6 +274,9 @@ public class BlueTwelveBallAuto extends OpMode {
             // 2) After outtake completes, go pick up balls
             // ------------------------------------------------------------
             case 2:
+                if(fallback){
+                    order = getMotifForTag(21);
+                }
                 if (!outtakeInProgress) {
                     follower.followPath(paths.Pickup1);
                     setState(3);
@@ -284,7 +298,7 @@ public class BlueTwelveBallAuto extends OpMode {
                     if (!isSettling) {
                         isSettling = true;
                         settleTimer.reset();
-                    } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
+                    } else if (settleTimer.milliseconds() > 2000) {
                         spinInterval = 10;
                         follower.followPath(paths.Shoot1);
                         setState(5);
@@ -312,8 +326,12 @@ public class BlueTwelveBallAuto extends OpMode {
             // 5) After outtake, pickup2
             // ------------------------------------------------------------
             case 6:
+                if(fallback){
+                    order = getMotifForTag(22);
+                }
+
                 if (!outtakeInProgress) {
-                    follower.followPath(paths.Pickup2);
+                    follower.followPath(paths.Pickup2, 0.95, false);
                     setState(7);
                 }
                 break;
@@ -356,7 +374,10 @@ public class BlueTwelveBallAuto extends OpMode {
             // ------------------------------------------------------------
             case 9:
                 if (!outtakeInProgress) {
-                    follower.followPath(paths.Pickup3);
+                    if(fallback){
+                        order = getMotifForTag(23);
+                    }
+                    follower.followPath(paths.Pickup3, 0.95, false);
                     setState(10);
                 }
                 break;
@@ -431,7 +452,7 @@ public class BlueTwelveBallAuto extends OpMode {
 
         // Check if it's time for the next advanceIntake call
         if (outtakeAdvanceCount < 2) {
-            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS) {
+            if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 2 : OUTTAKE_DELAY_MS)) {
                 spindexer.advanceShoot();
                 outtakeAdvanceCount++;
                 lastAdvanceTime = currentTime;
