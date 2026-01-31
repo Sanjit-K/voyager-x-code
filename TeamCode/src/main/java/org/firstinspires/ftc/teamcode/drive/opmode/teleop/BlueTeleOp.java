@@ -272,6 +272,10 @@ public class BlueTeleOp extends OpMode {
             handleSingleOuttake();
         }
 
+        if(spindexer.isFull()){
+            gamepad2.rumble(200);
+        }
+
 
         if (spindexer.isFull() && !outtakeInProgress && !singleOuttakeInProgress){
             spindexer.setShootIndex(1);
