@@ -64,7 +64,7 @@ public class BlueTwelveBallAuto extends OpMode {
     // -------------------- Config (tune in Panels) --------------------
     public static double SCAN_TURRET_DEG = 250;         // turret angle while scanning for tag
     public static double SHOOT_DEG = 318.8;
-    public static double SHOOT_RPM = 2140;
+    public static double SHOOT_RPM = 2125;
 
     public static double PARK_SPEED = 1.0;         // follower speed scalar for park
 
