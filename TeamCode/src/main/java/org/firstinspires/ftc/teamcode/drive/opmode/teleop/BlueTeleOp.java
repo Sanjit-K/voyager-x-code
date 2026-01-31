@@ -25,8 +25,6 @@ public class BlueTeleOp extends OpMode {
 
     private BarIntake barIntake;
     private Spindexer spindexer;
-
-
     private int offset_turret = 0;
     private KickerServo kickerServo;
     private Turret turret;
@@ -272,6 +270,10 @@ public class BlueTeleOp extends OpMode {
         }
         if (singleOuttakeInProgress){
             handleSingleOuttake();
+        }
+
+        if(spindexer.isFull()){
+            gamepad2.rumble(200);
         }
 
 

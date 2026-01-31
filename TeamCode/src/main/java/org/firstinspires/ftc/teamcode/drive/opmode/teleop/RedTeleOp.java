@@ -190,6 +190,10 @@ public class RedTeleOp extends OpMode {
             spindexer.retreatIntake();
         }
 
+        if(spindexer.isFull()){
+            gamepad2.rumble(200);
+        }
+
 
         if (gamepad1.xWasPressed()){
             spindexer.clearTracking();

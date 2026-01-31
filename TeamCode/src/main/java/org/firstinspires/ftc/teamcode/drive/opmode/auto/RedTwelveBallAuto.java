@@ -64,7 +64,7 @@ public class RedTwelveBallAuto extends OpMode {
     // -------------------- Config (tune in Panels) --------------------
     public static double SCAN_TURRET_DEG = 110;         // turret angle while scanning for tag
     public static double SHOOT_DEG = 43.5;
-    public static double SHOOT_RPM = 2140;
+    public static double SHOOT_RPM = 2125;
 
     public static double PARK_SPEED = 1.0;         // follower speed scalar for park
 
