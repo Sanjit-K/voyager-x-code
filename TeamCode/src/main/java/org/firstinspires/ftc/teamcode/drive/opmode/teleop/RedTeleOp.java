@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.drive.opmode.teleop;
 
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -48,11 +49,13 @@ public class RedTeleOp extends OpMode {
     private static double OUTTAKE_DELAY_MS = 300;
 
     private int spinInterval = 0;
+    private GoBildaPinpointDriver pinpoint;
 
 
     private double currentRPM = 2500.0;
 
     // --- velocity-based RPM compensation ---
+    private boolean lastFull = false;
     private Pose lastPose = null;
     private double lastPoseTimeSec = 0.0;
 
@@ -87,6 +90,8 @@ public class RedTeleOp extends OpMode {
         turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
         loopTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
+        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+        pinpoint.recalibrateIMU();
         //turret.goToPosition(180);
 
 
@@ -177,7 +182,7 @@ public class RedTeleOp extends OpMode {
         if (gamepad1.startWasPressed()){
             follower.setPose(new Pose(7.5, 7.75, Math.toRadians(0)));
             turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
-
+            pinpoint.recalibrateIMU();
             // Ensure LockMode doesn't keep stale state across reset
             isLocked = false;
             lockMode.unlockPosition();
@@ -245,14 +250,11 @@ public class RedTeleOp extends OpMode {
         currentRPM = (currentRPM > CloseCap && rpmCap) ? CloseCap : currentRPM;
 
 
-        if(gamepad1.dpadLeftWasPressed()){
-            if(CloseCap == 2800){
-                CloseCap = 2600;
-            }else{
-                CloseCap = 2800;
-            }
-            gamepad1.rumble(200);
+        if (spindexer.isFull()){
+            if (!lastFull) gamepad2.rumble(2000);
+            lastFull = true;
         }
+        else lastFull = false;
 
         // Update RPM
         turret.setShooterRPM(currentRPM);
@@ -282,13 +284,16 @@ public class RedTeleOp extends OpMode {
         if (spindexer.isFull() && !outtakeInProgress && !singleOuttakeInProgress){
             spindexer.setShootIndex(1);
             spinInterval++;
-            if (spinInterval > 40 && spinInterval < 60)
+            if (spinInterval > 30 && spinInterval < 50)
                 barIntake.spinOuttake();
             else {
                 barIntake.stop();
             }
         }
 
+        if (outtakeInProgress){
+            barIntake.stop();
+        }
         spindexer.update();
 
 

@@ -91,6 +91,7 @@ public class BlueAuto extends OpMode {
                 false,
                 false);
 
+
         // Paths
         paths = new Paths(follower);
 

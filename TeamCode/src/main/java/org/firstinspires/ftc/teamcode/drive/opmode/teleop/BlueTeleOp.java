@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.drive.opmode.teleop;
 
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -34,6 +35,7 @@ public class BlueTeleOp extends OpMode {
     private LynxModule expansionHub;
     private static final double OFFSET = Math.toRadians(180.0);
     private Pose targetPose = new Pose(0, 144, 0); // Fixed target
+    private GoBildaPinpointDriver pinpoint;
 
     // Outtake routine state
     private boolean outtakeInProgress = false;
@@ -52,6 +54,7 @@ public class BlueTeleOp extends OpMode {
 
     // --- velocity-based RPM compensation ---
     private Pose lastPose = null;
+    private boolean lastFull = false;
     private double lastPoseTimeSec = 0.0;
 
     /**
@@ -85,8 +88,9 @@ public class BlueTeleOp extends OpMode {
         turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
         loopTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
+        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
         //turret.goToPosition(180);
-
+        pinpoint.recalibrateIMU();
 
         if (PoseStorage.currentPose != null) {
             follower.setPose(PoseStorage.currentPose);
@@ -175,7 +179,7 @@ public class BlueTeleOp extends OpMode {
         if (gamepad1.startWasPressed()){
             follower.setPose(new Pose(136.5, 7.75, Math.toRadians(180)));
             turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
-
+            pinpoint.recalibrateIMU();
             // Ensure LockMode doesn't keep stale state across reset
             isLocked = false;
             lockMode.unlockPosition();
@@ -272,19 +276,25 @@ public class BlueTeleOp extends OpMode {
             handleSingleOuttake();
         }
 
-        if(spindexer.isFull()){
-            gamepad2.rumble(200);
-        }
 
+        if (spindexer.isFull()){
+            if (!lastFull) gamepad2.rumble(2000);
+            lastFull = true;
+        }
+        else lastFull = false;
 
         if (spindexer.isFull() && !outtakeInProgress && !singleOuttakeInProgress){
             spindexer.setShootIndex(1);
             spinInterval++;
-            if (spinInterval > 40 && spinInterval < 60)
+            if (spinInterval > 30 && spinInterval < 50)
                 barIntake.spinOuttake();
             else {
                 barIntake.stop();
             }
+        }
+
+        if (outtakeInProgress){
+            barIntake.stop();
         }
 
         spindexer.update();
