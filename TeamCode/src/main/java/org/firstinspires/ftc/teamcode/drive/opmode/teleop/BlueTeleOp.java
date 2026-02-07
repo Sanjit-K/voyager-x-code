@@ -45,7 +45,7 @@ public class BlueTeleOp extends OpMode {
     private boolean singleAtPosition = false;
     private int outtakeAdvanceCount = 0;
     private double lastAdvanceTime = 0;
-    private static double OUTTAKE_DELAY_MS = 300;
+    private static double OUTTAKE_DELAY_MS = 150;
 
     private int spinInterval = 0;
 
@@ -176,8 +176,8 @@ public class BlueTeleOp extends OpMode {
         lastPoseTimeSec = nowSec;
 
         // Field Reset
-        if (gamepad1.startWasPressed()){
-            follower.setPose(new Pose(136.5, 7.75, Math.toRadians(180)));
+        if (gamepad1.shareWasPressed()){
+            follower.setPose(new Pose(136.5, 7.75, Math.toRadians(0)));
             turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
             pinpoint.recalibrateIMU();
             // Ensure LockMode doesn't keep stale state across reset
@@ -338,7 +338,7 @@ public class BlueTeleOp extends OpMode {
 
         // Check if it's time for the next advanceIntake call
         if (outtakeAdvanceCount < 2) {
-            if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 2 : OUTTAKE_DELAY_MS)) {
+            if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 3 : OUTTAKE_DELAY_MS)) {
                 spindexer.advanceShoot();
                 outtakeAdvanceCount++;
                 lastAdvanceTime = currentTime;

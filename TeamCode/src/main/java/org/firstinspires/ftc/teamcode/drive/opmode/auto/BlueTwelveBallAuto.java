@@ -194,6 +194,10 @@ public class BlueTwelveBallAuto extends OpMode {
             if (order != null) spindexer.setShootIndex(order[currentOrderIndex]);
         }
 
+        if (spindexer.isFull() && !outtakeInProgress){
+            if (order != null) spindexer.setShootIndex(order[currentOrderIndex]);
+        }
+
         // 4) Run state machine
         autonomousUpdate();
         PoseStorage.currentPose = follower.getPose();
@@ -209,7 +213,7 @@ public class BlueTwelveBallAuto extends OpMode {
         if(currentBarIntakeState.equals("in")){
             barIntake.spinIntake();
         }else if(currentBarIntakeState.equals("out")){
-            barIntake.spinIntake();
+            barIntake.spinOuttake();
         }else{
             barIntake.stop();
         }

@@ -179,8 +179,8 @@ public class RedTeleOp extends OpMode {
         lastPoseTimeSec = nowSec;
 
         // Field Reset
-        if (gamepad1.startWasPressed()){
-            follower.setPose(new Pose(7.5, 7.75, Math.toRadians(0)));
+        if (gamepad1.shareWasPressed()){
+            follower.setPose(new Pose(7.5, 7.75, Math.toRadians(180)));
             turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
             pinpoint.recalibrateIMU();
             // Ensure LockMode doesn't keep stale state across reset
