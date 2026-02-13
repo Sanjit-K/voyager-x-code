@@ -25,13 +25,14 @@ public class TurretLimelight extends OpMode {
      * so we track the commanded angle locally.
      */
     private double targetAngleDeg = 180.0;
+    private static final double AIM_GAIN = 0.1; // Dampen correction to prevent overshoot
 
     @Override
     public void init() {
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
         limelight.setPollRateHz(100);
         limelight.start();
-        limelight.pipelineSwitch(1); // Switch to pipeline number 1
+        limelight.pipelineSwitch(0); // Switch to pipeline number 1
         follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(new Pose()); //set your starting pose
         turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
@@ -48,8 +49,8 @@ public class TurretLimelight extends OpMode {
             double tx = result.getTx(); // How far left or right the target is (degrees)
 
             // Adjust our commanded target angle. Clamp to the same range enforced in trackTarget().
-            targetAngleDeg = Math.max(80.0, Math.min(280.0, targetAngleDeg + tx));
-            turret.goToPosition(targetAngleDeg);
+            targetAngleDeg = Math.max(80.0, Math.min(280.0, targetAngleDeg - tx * AIM_GAIN));
+
 
             telemetry.addData("Target X", tx);
             telemetry.addData("Target Angle (cmd)", targetAngleDeg);
@@ -57,7 +58,10 @@ public class TurretLimelight extends OpMode {
             telemetry.addData("Limelight", "No Targets");
             telemetry.addData("Target Angle (cmd)", targetAngleDeg);
         }
-        telemetry.addData("Turret Voltage", turret.getTurretVoltage());
+        if(gamepad1.aWasPressed()){
+            turret.goToPosition(targetAngleDeg);
+        }
+
         telemetry.update();
     }
 }
