@@ -23,9 +23,9 @@ import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 import java.util.Objects;
 
 
-@Autonomous(name = "Blue Gate Path Auto", group = "Autonomous")
+@Autonomous(name = "Red Playoff Auto", group = "Autonomous")
 @Configurable
-public class BlueGatePathAuto extends OpMode {
+public class RedPlayoffAuto extends OpMode {
 
     // -------------------- Panels + Pedro --------------------
     private TelemetryManager panelsTelemetry;
@@ -58,7 +58,7 @@ public class BlueGatePathAuto extends OpMode {
     private final ElapsedTime settleTimer = new ElapsedTime();
     private boolean isSettling = false;
     private static final long SETTLE_DELAY_MS = 250;
-    private static final long GATE_WAIT_MS = 4500;
+    private static final long GATE_WAIT_MS = 4000;
 
     private void setState(int s) {
         if (s != lastState) {
@@ -155,7 +155,11 @@ public class BlueGatePathAuto extends OpMode {
             }
         }
 
-        if (spindexer.isFull() && !outtakeInProgress) {
+        if (follower.getPose().getX() < 124 && !outtakeInProgress && (pathState == 5 || pathState == 8 || pathState == 11 || pathState == 14)){
+            spindexer.setShootIndex(1);
+        }
+
+        if (spindexer.isFull() && !outtakeInProgress){
             spindexer.setShootIndex(1);
         }
 
@@ -203,7 +207,7 @@ public class BlueGatePathAuto extends OpMode {
                 break;
 
             case 1:
-                if (!follower.isBusy() && stateTimer.milliseconds() > 2000) {
+                if (!follower.isBusy() && stateTimer.milliseconds() > 1000) {
                     startOuttakeRoutine();
                     setState(2);
                 }
@@ -216,8 +220,13 @@ public class BlueGatePathAuto extends OpMode {
 
             case 3:
                 if (!follower.isBusy()) {
-                    follower.followPath(paths.ReleaseGate);
-                    setState(4);
+                    if (!isSettling) {
+                        isSettling = true;
+                        settleTimer.reset();
+                    } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
+                        follower.followPath(paths.ReleaseGate);
+                        setState(4);
+                    }
                 }
                 break;
 
@@ -301,8 +310,13 @@ public class BlueGatePathAuto extends OpMode {
 
             case 13:
                 if (!follower.isBusy()) {
-                    follower.followPath(paths.Shoot2);
-                    setState(14);
+                    if (!isSettling) {
+                        isSettling = true;
+                        settleTimer.reset();
+                    } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
+                        follower.followPath(paths.Shoot2);
+                        setState(14);
+                    }
                 }
                 break;
 
@@ -345,7 +359,7 @@ public class BlueGatePathAuto extends OpMode {
         double currentTime = outtakeTimer.milliseconds();
 
         if (outtakeAdvanceCount < 2) {
-            if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 2 : OUTTAKE_DELAY_MS)) {
+            if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 3 : OUTTAKE_DELAY_MS)) {
                 spindexer.advanceShoot();
                 outtakeAdvanceCount++;
                 lastAdvanceTime = currentTime;
@@ -419,15 +433,15 @@ public class BlueGatePathAuto extends OpMode {
                             new BezierCurve(
                                     new Pose(104.346, 103.912),
                                     new Pose(86.727, 69.932),
-                                    new Pose(132.591, 58.597)
+                                    new Pose(133, 60)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(33))
                     .build();
 
             ShootGateIntake = follower.pathBuilder().addPath(
                             new BezierCurve(
-                                    new Pose(132.591, 58.597),
-                                    new Pose(86.727, 69.932),
+                                    new Pose(133, 60),
+                                    new Pose(75, 69.932),
                                     new Pose(104.346, 103.912)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(33), Math.toRadians(0))

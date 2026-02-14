@@ -29,6 +29,7 @@ public class RedTeleOp extends OpMode {
 
     private BarIntake barIntake;
     private Servo ledHeadlight;
+    private Servo ledHeadlight2;
     private Spindexer spindexer;
 
 
@@ -99,6 +100,8 @@ public class RedTeleOp extends OpMode {
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
         ledHeadlight = hardwareMap.get(Servo.class, "ledLight");
         ledHeadlight.setPosition(0.0);
+        ledHeadlight2 = hardwareMap.get(Servo.class, "ledLight2");
+        ledHeadlight2.setPosition(0.0);
         pinpoint.recalibrateIMU();
         //turret.goToPosition(180);
 
@@ -285,11 +288,13 @@ public class RedTeleOp extends OpMode {
 
         if (spindexer.isFull()){
             ledHeadlight.setPosition(1.0);
+            ledHeadlight2.setPosition(1.0);
             if (!lastFull) gamepad2.rumble(2000);
             lastFull = true;
         }
         else{
             ledHeadlight.setPosition(0.0);
+            ledHeadlight2.setPosition(0.0);
             lastFull = false;
         }
 
@@ -428,3 +433,4 @@ public class RedTeleOp extends OpMode {
         }
     }
 }
+
