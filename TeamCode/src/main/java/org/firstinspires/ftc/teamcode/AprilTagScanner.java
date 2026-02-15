@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.turret;
+package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
@@ -8,6 +8,9 @@ import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagGameDatabase;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
+import com.pedropathing.geometry.Pose;
+import com.pedropathing.ftc.FTCCoordinates;
+import com.pedropathing.geometry.PedroCoordinates;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -20,6 +23,12 @@ public class AprilTagScanner {
     private final AprilTagProcessor aprilTag;
     private final VisionPortal visionPortal;
     private static final double MIN_DECISION_MARGIN = 0; // Minimum confidence threshold
+
+    // AprilTag position constants (field coordinates in inches)
+    // TODO: Fill in these values with actual AprilTag positions on the field
+    private static final Pose APRILTAG_B_POSITION = new Pose(0, 0, 0); // Replace with actual position
+    private static final Pose APRILTAG_R_POSITION = new Pose(0, 0, 0); // Replace with actual position
+    // Add more AprilTag positions as needed
 
     /**
      * Initialize the AprilTag scanner with optimized settings.
@@ -41,7 +50,7 @@ public class AprilTagScanner {
         visionPortal = new VisionPortal.Builder()
                 .setCamera(hardwareMap.get(WebcamName.class, webcamName))
                 .addProcessor(aprilTag)
-                .setCameraResolution(new android.util.Size(1920, 1080)) // C920 calibrated for 640x480
+                .setCameraResolution(new android.util.Size(640, 480)) // C920 calibrated for 640x480
                 .setStreamFormat(VisionPortal.StreamFormat.MJPEG) // Better performance
                 .enableLiveView(true)
                 .setAutoStopLiveView(false)
@@ -110,55 +119,23 @@ public class AprilTagScanner {
         return getDetections().size();
     }
 
-    /**
-     * Get the camera state for debugging.
-     * @return Current camera state
-     */
-    public VisionPortal.CameraState getCameraState() {
-        return visionPortal.getCameraState();
-    }
 
     /**
-     * Get the current FPS for debugging.
-     * @return Frames per second
+     * Get the field position of an AprilTag by its ID.
+     *
+     * @param tagId The AprilTag ID
+     * @return The AprilTag's position on the field, or null if ID is unknown
      */
-    public double getFps() {
-        return visionPortal.getFps();
-    }
-
-    /**
-     * Get the current FPS for debugging (alias).
-     * @return Frames per second
-     */
-    public double getCameraFPS() {
-        return visionPortal.getFps();
-    }
-
-    /**
-     * Set camera exposure dynamically.
-     * @param exposureMS Exposure time in milliseconds (1-100)
-     */
-    public void setCameraExposure(int exposureMS) {
-        if (visionPortal.getCameraState() != VisionPortal.CameraState.STREAMING) {
-            return;
+    private Pose getAprilTagPosition(int tagId) {
+        switch (tagId) {
+            case 20:
+                return APRILTAG_B_POSITION;
+            case 24:
+                return APRILTAG_R_POSITION;
+            // Add more cases as needed for other AprilTag IDs
+            default:
+                return null; // Unknown AprilTag ID
         }
-        ExposureControl exposureControl = visionPortal.getCameraControl(ExposureControl.class);
-        if (exposureControl.getMode() != ExposureControl.Mode.Manual) {
-            exposureControl.setMode(ExposureControl.Mode.Manual);
-        }
-        exposureControl.setExposure(exposureMS, TimeUnit.MILLISECONDS);
-    }
-
-    /**
-     * Set camera gain dynamically.
-     * @param gain ISO gain (0-255)
-     */
-    public void setCameraGain(int gain) {
-        if (visionPortal.getCameraState() != VisionPortal.CameraState.STREAMING) {
-            return;
-        }
-        GainControl gainControl = visionPortal.getCameraControl(GainControl.class);
-        gainControl.setGain(gain);
     }
 
     /**

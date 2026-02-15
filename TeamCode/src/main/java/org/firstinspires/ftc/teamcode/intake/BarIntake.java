@@ -1,0 +1,53 @@
+package org.firstinspires.ftc.teamcode.intake;
+
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.HardwareMap;
+
+public class BarIntake {
+    private DcMotorEx motor;
+    private double power = 1;
+
+    public BarIntake(HardwareMap hardwareMap, String name, boolean reversed) {
+        motor = hardwareMap.get(DcMotorEx.class, name);
+        if (reversed) {
+            motor.setDirection(DcMotorSimple.Direction.REVERSE);
+        } else {
+            motor.setDirection(DcMotorSimple.Direction.FORWARD);
+        }
+        motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+    }
+
+    public String getStatus(){
+        if(motor.getPower() > 0){
+            return "in";
+        }else if(motor.getPower() < 0){
+            return "out";
+        }
+        return "off";
+    }
+
+    public double getPower() {
+        return power;
+    }
+
+    public void setPower(double power) {
+        this.power = power;
+    }
+
+    public void spinIntake() {
+        motor.setPower(power);
+    }
+
+    public void spinOuttake() {
+        motor.setPower(-power);
+    }
+    public void spinOuttake(double outtakePower) {
+        motor.setPower(-outtakePower);
+    }
+
+    public void stop() {
+        motor.setPower(0.0);
+    }
+}

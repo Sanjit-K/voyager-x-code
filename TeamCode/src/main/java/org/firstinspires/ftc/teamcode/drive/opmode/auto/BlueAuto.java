@@ -1,324 +1,483 @@
 package org.firstinspires.ftc.teamcode.drive.opmode.auto;
 
-// FTC SDK
-
 import com.bylazar.configurables.annotations.Configurable;
 import com.bylazar.telemetry.PanelsTelemetry;
 import com.bylazar.telemetry.TelemetryManager;
 import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
-import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.firstinspires.ftc.teamcode.intake.IntakeServos;
+import org.firstinspires.ftc.teamcode.intake.BarIntake;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
-import org.firstinspires.ftc.teamcode.turret.ColorSensor;
-import org.firstinspires.ftc.teamcode.turret.LaunchMotors;
-import org.firstinspires.ftc.teamcode.turret.LaunchServos;
-import org.firstinspires.ftc.teamcode.turret.RobotHeading;
-import org.firstinspires.ftc.teamcode.turret.YawServo;
+import org.firstinspires.ftc.teamcode.pedroPathing.PoseStorage;
+import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
+import org.firstinspires.ftc.teamcode.sorting.Spindexer;
+import org.firstinspires.ftc.teamcode.shooting.KickerServo;
+import org.firstinspires.ftc.teamcode.shooting.Turret;
 
-@Autonomous(name = "Blue Auto", group = "Opmode")
-@Configurable // Panels
-@SuppressWarnings("FieldCanBeLocal") // Stop Android Studio from bugging about variables being predefined
-public class BlueAuto extends LinearOpMode {
-    // Initialize elapsed timer
-    private final ElapsedTime runtime = new ElapsedTime();
+@Autonomous(name = "Blue Auto", group = "Autonomous")
+@Configurable
+public class BlueAuto extends OpMode {
 
-    // Initialize poses
-    private final Pose startPose = new Pose(61.5, 9, Math.toRadians(180)); // Start Pose of our robot.
-    private final Pose PGPPose = new Pose(49, 59.5+23, Math.toRadians(180)); // Middle (Second Set) of Artifacts from the Spike Mark.
-    private final Pose GPPPose = new Pose(44, 35.5, Math.toRadians(180)); // Lowest (Third Set) of Artifacts from the Spike Mark.
+    // Panels + Pedro
+    private TelemetryManager panelsTelemetry;
+    public Follower follower;
+    private Paths paths;
 
-    // Initialize variables for paths
-
-    private PathChain grabPPG;
-
-
-
-
-
-    // Other variables
-    private Pose currentPose; // Current pose of the robot
-    private Follower follower; // Pedro Pathing follower
-    private TelemetryManager panelsTelemetry; // Panels telemetry
-    private int pathStatePPG; // Current state machine value
-
-
-    private YawServo yawServo;
-    private LaunchMotors launchMotors;
-    private LaunchServos launchServos;
-    private IntakeServos intakeServos;
+    // Subsystems (match TeleOp logic)
+    private BarIntake barIntake;
     private ColorSensor colorSensor;
-    private boolean detected;
+    private Spindexer spindexer;
+    private KickerServo kickerServo;
+    double targetAngle = 308;
+    private Turret turret;
 
+    // State machine
+    private int pathState = 0;
 
+    // Outtake routine (ported from TeleOp)
+    private final ElapsedTime outtakeTimer = new ElapsedTime();
+    private boolean outtakeInProgress = false;
+    private int outtakeAdvanceCount = 0;
+    private double lastAdvanceTimeMs = 0.0;
+    private double OUTTAKE_DELAY_MS = 650.0;
 
+    // RPM (ported from TeleOp distance->rpm)
+    private double currentRPM = 2210;
 
-    // Custom logging function to support telemetry and Panels
-    private void log(String caption, Object... text) {
-        if (text.length == 1) {
-            telemetry.addData(caption, text[0]);
-            panelsTelemetry.debug(caption + ": " + text[0]);
-        } else if (text.length >= 2) {
-            StringBuilder message = new StringBuilder();
-            for (int i = 0; i < text.length; i++) {
-                message.append(text[i]);
-                if (i < text.length - 1) message.append(" ");
-            }
-            telemetry.addData(caption, message.toString());
-            panelsTelemetry.debug(caption + ": " + message);
+    private final ElapsedTime stateTimer = new ElapsedTime();
+    private int lastState = -1;
+
+    private void setState(int s) {
+        if (s != lastState) {
+            lastState = s;
+            stateTimer.reset();
         }
+        pathState = s;
     }
-
-    // a place to put your intake and shooting functions
 
     @Override
-    public void runOpMode() {
-        // Initialize Panels telemetry
+    public void init() {
         panelsTelemetry = PanelsTelemetry.INSTANCE.getTelemetry();
 
-        // Initialize Pedro Pathing follower
         follower = Constants.createFollower(hardwareMap);
+
+        // Use the FIRST pose of shoot1 as the starting pose (most important)
+        Pose startPose = new Pose(22.55, 123.14, Math.toRadians(180));
         follower.setStartingPose(startPose);
 
-        yawServo = new YawServo(hardwareMap, follower, "yawServo", false);
-        intakeServos = new IntakeServos(hardwareMap, "leftForward", "barFront", "rightForward", "leftBack", "barBack", "rightBack");
-        launchServos = new LaunchServos(hardwareMap, "servoL", "servoR", "servoTop");
-        launchMotors = new LaunchMotors(hardwareMap, follower, "turretL", "turretR");
-        colorSensor = new ColorSensor(hardwareMap, "color");
+        // Subsystems (use the same device names as TeleOp)
+        barIntake = new BarIntake(hardwareMap, "barIntake", true);
+        colorSensor = new ColorSensor(hardwareMap, "colorSensor");
+        spindexer = new Spindexer(
+                hardwareMap,
+                "spindexerMotor",
+                "spindexerAnalog",
+                "distanceSensor",
+                colorSensor
+        );
+        kickerServo = new KickerServo(hardwareMap, "kickerServo");
+        turret = new Turret(
+                hardwareMap,
+                "shooter",
+                "turret",
+                "turretEncoder",
+                "transferMotor",
+                false,
+                false);
 
 
-        // Log completed initialization to Panels and driver station (custom log function)
-        log("Status", "Initialized");
-        telemetry.update(); // Update driver station after logging
-        yawServo.setPosition(0.36);
+        // Paths
+        paths = new Paths(follower);
 
-//        colorSensor.setDelayMillis(350);
+        // Startup config similar to TeleOp behavior
+        kickerServo.normal();
+        //turret.on();
+        //barIntake.spinIntake();
 
-        // Wait for the game to start (driver presses START)
-        waitForStart();
-        runtime.reset();
+        panelsTelemetry.debug("Status", "Initialized");
+        panelsTelemetry.update(telemetry);
+    }
 
-        setpathState(0);
-        runtime.reset();
+    @Override
+    public void start() {
+        // Ensure shooter/intake on at start
+        turret.on();
+        barIntake.spinIntake();
+        turret.transferOn();
+        // In start(), replace: pathState = 0;
+        setState(0);
+        outtakeInProgress = false;
+    }
 
-        while (opModeIsActive()) {
-            // Update Pedro Pathing and Panels every iteration
-            follower.update();
-            panelsTelemetry.update();
-            currentPose = follower.getPose(); // Update the current pose
+    @Override
+    public void loop() {
+        // Update follower first
+        follower.update();
 
-            detected = colorSensor.delayedDetection();
-            updateStateMachine();
+        // Keep turret aimed + RPM updated (so by the time you arrive, you're close)
+        //updateShooterRPMFromDistance();
+        turret.setShooterRPM(currentRPM);
 
-            // Log to Panels and driver station (custom log function)
-            log("Elapsed", runtime.toString());
-            log("X", currentPose.getX());
-            log("Y", currentPose.getY());
-            log("Heading", currentPose.getHeading());
-            telemetry.update(); // Update the driver station after logging
+
+        // While in a "shoot" stage, keep tracking target (safe to call always)
+        //turret.trackTarget(follower.getPose(), targetPose);
+        turret.goToPosition(targetAngle);
+        turret.on();
+        // Spindexer continuous update
+        spindexer.update();
+        if (!outtakeInProgress && spindexer.isFull()) {
+            barIntake.stop();
+        }
+
+
+        // Run the autonomous state machine
+        autonomousPathUpdate();
+
+        // Telemetry
+        panelsTelemetry.debug("Path State", pathState);
+        panelsTelemetry.debug("X", follower.getPose().getX());
+        panelsTelemetry.debug("Y", follower.getPose().getY());
+        panelsTelemetry.debug("Heading", follower.getPose().getHeading());
+        panelsTelemetry.debug("Target RPM", currentRPM);
+        panelsTelemetry.debug("Outtake", outtakeInProgress);
+        panelsTelemetry.update(telemetry);
+    }
+
+    @Override
+    public void stop() {
+        // Save the robot's last known pose to the static variable
+        PoseStorage.currentPose = follower.getPose();
+    }
+
+
+    // -------------------- Outtake routine (TeleOp -> Auto) --------------------
+
+    private void startOuttakeRoutine() {
+        outtakeInProgress = true;
+        outtakeAdvanceCount = 0;
+        outtakeTimer.reset();
+        lastAdvanceTimeMs = 0.0;
+
+        // Kick
+        kickerServo.kick();
+
+        // First advance immediately
+        spindexer.advanceIntake();
+        outtakeAdvanceCount++;
+        lastAdvanceTimeMs = outtakeTimer.milliseconds();
+    }
+
+    private void handleOuttakeRoutine() {
+        double now = outtakeTimer.milliseconds();
+
+        if (outtakeAdvanceCount < 3) {
+            if (now - lastAdvanceTimeMs >= OUTTAKE_DELAY_MS) {
+                spindexer.advanceIntake();
+                outtakeAdvanceCount++;
+                lastAdvanceTimeMs = now;
+            }
+            return;
+        }
+
+        // After the 3 advances, wait one more delay then finish
+        if (now - lastAdvanceTimeMs >= OUTTAKE_DELAY_MS) {
+            kickerServo.normal();
+            spindexer.clearTracking();
+            barIntake.spinIntake();
+            outtakeInProgress = false;
         }
     }
 
-    //below is the state machine or each pattern
+    // -------------------- State machine --------------------
 
-    public void updateStateMachine() {
-        switch (pathStatePPG) {
-            case 0: // Shoots ball no 1
-                presetLaunch(300);
-                setpathState(1);
+    public void autonomousPathUpdate() {
+        // If we are currently outtaking, that blocks path transitions.
+        if (outtakeInProgress) {
+            handleOuttakeRoutine();
+            return;
+        }
+
+        switch (pathState) {
+
+            // -------- shoot1 -> outtake -> pickupPreset1 --------
+            case 0:
+                follower.followPath(paths.shoot1);
+                setState(1);
                 break;
-            case 1: // Moves servo to back intake position, enables back intake
-                if (runtime.seconds() > 2){
-                    yawServo.back();
-                    intakeServos.enableBackIntake();
-                    setpathState(2);
-                }
-                break;
-            case 2: // Intakes ball no 2, stops servos when ball reaches color sensor
-                if (detected){
-                    launchServos.disable();
-                }
-                if (runtime.seconds() > 4.8) {
-                    presetLaunch(300); // Launch ball no 2
-                    setpathState(3);
-                }
-                break;
-            case 3: // Moves to front intake position, enables front intake
-                if (runtime.seconds() > 6){
-                    yawServo.front();
-                    sleep(300);
-                    intakeServos.enableFrontIntake();
-                    setpathState(4);
-                }
-                break;
-            case 4: // Intakes ball no 3, stops servos when ball reaches color sensor
-                if (detected){
-                    launchServos.disable();
-                }
-                if (runtime.seconds() > 8.8) {
-                    presetLaunch(300); // Shoots ball no 3
-                    setpathState(5);
-                }
-                break;
-            case 5: // Turns off launch motors, moves to first artifact pickup pose
-                if (runtime.seconds() > 10) {
-                    yawServo.front();
-                    path1();
-                    intakeServos.enableFrontIntake();
-                    launchServos.enable();
-                    setpathState(6);
-                }
-                break;
-            case 6: // Slowly moves to intake balls
-                if (runtime.seconds() > 12){
-                    path2();
-                    setpathState(7);
-                }
-                break;
-            case 7: // Waits until ball is detected to stop intake servos
-                if (detected){
-                    sleep(200);
-                    intakeServos.disableFrontWheels();
-                    launchServos.disable();
-                    setpathState(8);
+
+            case 1: // end of shoot1: do outtake, then go next
+                if (!follower.isBusy()) {
+                        startOuttakeRoutine();
+                        setState(2);
                 }
                 break;
 
-            case 8: // Moves to scoring pose
-                if (runtime.seconds() > 15.5){
-                    launchMotors.set(0.575);
-                    path3();
-                    setpathState(9);
+            case 2: // after outtake completes, start pickupPreset1
+                if (!outtakeInProgress) {
+                    follower.followPath(paths.pickupPreset1);
+                    currentRPM = 2580;
+                    targetAngle = 308;
+                    setState(3);
                 }
                 break;
 
-            case 9: // Shoot balls no 4 and 5
-                if (runtime.seconds() > 19 && !follower.isBusy()){ // delay for shooting
-                    launchServos.enable();
-                    intakeServos.enableFrontIntake();
-                    setpathState(10);
+            // -------- shoot2 -> outtake -> gateIntake1 --------
+            case 3:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.shoot2);
+                    setState(4);
                 }
                 break;
 
-            case 10: // Moves to second artifact pickup pose
-                if (runtime.seconds() > 20.7){
-                    yawServo.front();
-                    path4();
-                    intakeServos.enableFrontIntake();
-                    launchServos.enable();
-                    setpathState(11);
-                }
-                break;
-            case 11: // Slowly moves to intake balls
-                if (runtime.seconds() > 22.2){
-                    path5();
-                    setpathState(12);
+            case 4: // end of shoot2
+                if (!follower.isBusy()) {
+                    startOuttakeRoutine();
+                    setState(5);
                 }
                 break;
 
-            case 12: // Waits until ball is detected to stop intake servos
-                if (detected){
-                    sleep(200);
-                    intakeServos.disableFrontWheels();
-                    launchServos.disable();
-                    setpathState(13);
+            case 5:
+                if (!outtakeInProgress) {
+                    follower.followPath(paths.gateIntake1);
+                    setState(6);
                 }
                 break;
 
-            case 13: // Moves to scoring pose
-                if (runtime.seconds() > 25.5){
-                    launchMotors.set(0.57);
-                    path6();
-                    setpathState(14);
+            // -------- shoot3 -> outtake -> gateIntake2 --------
+            case 6:
+                if (!follower.isBusy()) {
+                    if (stateTimer.milliseconds() == 0) stateTimer.reset(); // (better: use a dedicated timer)
+                    if (stateTimer.milliseconds() < 3000) {
+                        // wait 3 seconds
+                        return;
+                    }
+                    follower.followPath(paths.shoot3);
+                    setState(7);
                 }
                 break;
 
-            case 14: // Shoots ball no 6 and 7
-                if (runtime.seconds() > 27.5 && !follower.isBusy()){
-                    launchServos.enable();
-                    intakeServos.enableFrontIntake();
-                    setpathState(15);
+            case 7: // end of shoot3
+                if (!follower.isBusy()) {
+                    startOuttakeRoutine();
+                    setState(11);
                 }
+                break;
+
+//            case 8:
+//                if (!outtakeInProgress) {
+//                    follower.followPath(paths.gateIntake2);
+//                    setState(9);
+//                }
+//                break;
+//
+//            // -------- shoot4 -> outtake -> pickupPreset2 --------
+//            case 9:
+//                if (!follower.isBusy()) {
+//                    follower.followPath(paths.shoot4);
+//                    setState(10);
+//                }
+//                break;
+//
+//            case 10: // end of shoot4
+//                if (!follower.isBusy()) {
+//                    startOuttakeRoutine();
+//                    setState(11);
+//                }
+//                break;
+
+            case 11:
+                if (!outtakeInProgress) {
+                    currentRPM = 2010.7;
+                    targetAngle = 296;
+                    follower.followPath(paths.pickupPreset2, 0.7, false);
+                    setState(12);
+                }
+                break;
+
+            // -------- shoot5 -> outtake -> pickupPreset3 --------
+            case 12:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.shoot5);
+                    setState(13);
+                }
+                break;
+
+            case 13: // end of shoot5
+                if (!follower.isBusy()) {
+                    startOuttakeRoutine();
+                    setState(14);
+                }
+                break;
+
+            case 14:
+                if (!outtakeInProgress) {
+                    follower.followPath(paths.pickupPreset3, 0.9, false);
+                    currentRPM = 3250;
+                    targetAngle = 287;
+                    OUTTAKE_DELAY_MS = 700;
+
+                    setState(15);
+                }
+                break;
+
+            // -------- shoot6 -> outtake -> done --------
+            case 15:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.shoot6);
+                    setState(16);
+                }
+                break;
+
+            case 16: // end of shoot6
+                if (!follower.isBusy()) {
+                    startOuttakeRoutine();
+                    setState(17);
+                }
+                break;
+
+            case 17:
+                if (!outtakeInProgress) {
+                    // Done. Stay here.
+                    setState(18);
+                }
+                break;
+
+            case 18:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.leave, 0.5, true);
+                    setState(18);
+                }
+                break;
 
         }
     }
 
+    // -------------------- Paths (your new pathing) --------------------
 
-    // Setter methods for pathState variables placed at the class level
-    void setpathState(int newPathState) {
-        this.pathStatePPG = newPathState;
-    }
+    public static class Paths {
+        public PathChain shoot1;
+        public PathChain pickupPreset1;
+        public PathChain shoot2;
+        public PathChain gateIntake1;
+        public PathChain shoot3;
+        public PathChain gateIntake2;
+        public PathChain shoot4;
+        public PathChain pickupPreset2;
+        public PathChain shoot5;
+        public PathChain pickupPreset3;
+        public PathChain shoot6;
 
+        public PathChain leave;
 
+        public Paths(Follower follower) {
+            shoot1 = follower.pathBuilder()
+                    .addPath(new BezierLine(
+                            new Pose(22.55, 123.14),
+                            new Pose(46.571, 96.857)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    .build();
 
-    /**
-     * start the AprilTag processor.
-     */
+            pickupPreset1 = follower.pathBuilder().addPath(
+                            new BezierCurve(
+                                    new Pose(46.571, 96.857),
+                                    new Pose(57.529, 39.600),
+                                    new Pose(45.343, 66.543),
+                                    new Pose(17, 61.200)
+                            )
+                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    .build();
 
-    private void presetLaunch(int ms) {
-        yawServo.setPosition(0.365);
-        launchMotors.set(0.65);
-        sleep(ms);
-        launchServos.enable();
+            shoot2 = follower.pathBuilder().addPath(
+                            new BezierLine(
+                                    new Pose(17, 61.200),
+                                    new Pose(62.129, 75.457)
+                            )
+                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
 
-    }
+                    .build();
 
+            gateIntake1 = follower.pathBuilder()
+                    .addPath(new BezierLine(
+                            new Pose(62.129, 75.457),
+                            new Pose(11.553, 62.059)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(147.6))
+                    .build();
 
-    private void path1(){
-        follower.setMaxPower(1);
-        grabPPG = follower.pathBuilder() //
-                .addPath(new BezierLine(startPose, GPPPose))
-                .setLinearHeadingInterpolation(startPose.getHeading(), GPPPose.getHeading())
-                .build();
-        follower.followPath(grabPPG);
-    }
+            shoot3 = follower.pathBuilder()
+                    .addPath(new BezierLine(
+                            new Pose(11.553, 62.059),
+                            new Pose(62.129, 75.457)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(147.6), Math.toRadians(180))
+                    .build();
 
-    private void path2(){
-        follower.setMaxPower(0.2);
-        PathChain pickupPPG = follower.pathBuilder()
-                .addPath(new BezierLine(GPPPose, new Pose(20, 35.5, Math.toRadians(180))))
-                .setLinearHeadingInterpolation(GPPPose.getHeading(), Math.toRadians(180))
-                .build();
-        follower.followPath(pickupPPG);
-    }
-    private void path3(){
-        follower.setMaxPower(0.5); // move to scoring pos.
-        PathChain scorePPG = follower.pathBuilder()
-                .addPath(new BezierLine(new Pose(20, 35.5, Math.toRadians(180)), new Pose(144-84, 84, Math.toRadians(180+135))))
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180+135))
-                .build();
-        follower.followPath(scorePPG);
-    }
+            gateIntake2 = follower.pathBuilder()
+                    .addPath(new BezierLine(
+                            new Pose(62.129, 75.457),
+                            new Pose(12.629, 61.029)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(152))
+                    .build();
 
-    private void path4(){
-        follower.setMaxPower(1);
-        PathChain scorePGP = follower.pathBuilder()
-                .addPath(new BezierLine(new Pose(144-84, 84, Math.toRadians(180+135)), PGPPose))
-                .setLinearHeadingInterpolation(Math.toRadians(180+135), PGPPose.getHeading())
-                .build();
-        follower.followPath(scorePGP);
-    }
+            shoot4 = follower.pathBuilder()
+                    .addPath(new BezierLine(
+                            new Pose(12.629, 61.029),
+                            new Pose(60.971, 76)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(152), Math.toRadians(180))
+                    .build();
 
-    private void path5(){
-        follower.setMaxPower(0.2);
-        PathChain pickupPGP = follower.pathBuilder()
-                .addPath(new BezierLine(PGPPose, new Pose(20, 59.5+23, Math.toRadians(180))))
-                .setLinearHeadingInterpolation(PGPPose.getHeading(), Math.toRadians(180))
-                .build();
-        follower.followPath(pickupPGP);
-    }
+            pickupPreset2 = follower.pathBuilder()
+                    .addPath(new BezierCurve(
+                            new Pose(60.971, 76),
+                            new Pose(55.47, 88.700),
+                            new Pose(13.571, 86.657)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    .build();
 
-    private void path6(){
-        follower.setMaxPower(0.5); // move to second scoring pos.
-        PathChain scorePGP = follower.pathBuilder()
-                .addPath(new BezierLine(new Pose(20, 59.5+23, Math.toRadians(180)), new Pose(144-96, 96, Math.toRadians(180+135))))
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180+135))
-                .build();
-        follower.followPath(scorePGP);
+            shoot5 = follower.pathBuilder()
+                    .addPath(new BezierLine(
+                            new Pose(13.571, 86.657),
+                            new Pose(31.314, 101.686)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    .build();
+
+            pickupPreset3 = follower.pathBuilder()
+                    .addPath(new BezierCurve(
+                            new Pose(31.314, 101.686),
+                            new Pose(73.057, 31.586),
+                            new Pose(10, 35.714)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    .build();
+
+            shoot6 = follower.pathBuilder()
+                    .addPath(new BezierCurve(
+                            new Pose(10, 35.714),
+                            new Pose(59.457, 33.029),
+                            new Pose(61.600, 14.69)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    .build();
+
+            leave = follower.pathBuilder().addPath(
+                            new BezierLine(
+                                    new Pose(61.600, 14.69),
+                                    new Pose(61.60, 37.0)
+                            )
+                    ).setTangentHeadingInterpolation()
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    .build();
+        }
     }
 }

@@ -1,29 +1,38 @@
 package org.firstinspires.ftc.teamcode.pedroPathing;
 
+import com.pedropathing.control.PIDFCoefficients;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.follower.FollowerConstants;
 import com.pedropathing.ftc.FollowerBuilder;
 import com.pedropathing.ftc.drivetrains.MecanumConstants;
 import com.pedropathing.ftc.localization.Encoder;
+import com.pedropathing.ftc.localization.constants.PinpointConstants;
 import com.pedropathing.ftc.localization.constants.ThreeWheelIMUConstants;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.PathConstraints;
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+
 public class Constants {
 
     // -------------------- Shared driving/pathing knobs --------------------
-    public static PathConstraints pathConstraints = new PathConstraints(0.99, 100, 1, 1);
+    public static PathConstraints pathConstraints = new PathConstraints(0.99, 100, 0.8, 1);
 
     public static FollowerConstants followerConstants = new FollowerConstants()
-            .mass(8.2)
-            .forwardZeroPowerAcceleration(-30.186281715490008)
-            .lateralZeroPowerAcceleration(-61.8071580)
+            .mass(12)
+            .forwardZeroPowerAcceleration(-28.11)
+            .lateralZeroPowerAcceleration(-68.71)
             .useSecondaryDrivePIDF(true)
             .useSecondaryHeadingPIDF(true)
-            .useSecondaryTranslationalPIDF(true);
+            .useSecondaryTranslationalPIDF(true)
+            .translationalPIDFCoefficients(new PIDFCoefficients(0.1,0,0.01,0.1))
+            .secondaryTranslationalPIDFCoefficients(new PIDFCoefficients(0.12,0,0.02,0.03))
+            .headingPIDFCoefficients(new PIDFCoefficients(1,0,0.03,0.06))
+            .secondaryHeadingPIDFCoefficients(new PIDFCoefficients(1.3,0,0.04,0.03));
 
     public static MecanumConstants driveConstants = new MecanumConstants()
             .maxPower(1)
@@ -36,60 +45,23 @@ public class Constants {
             .rightFrontMotorDirection(DcMotorSimple.Direction.FORWARD)
             .rightRearMotorDirection(DcMotorSimple.Direction.FORWARD)
             .xVelocity(82.6)
-            .yVelocity(68.92)
+            .yVelocity(64.2)
             .useBrakeModeInTeleOp(true);
 
-    public static ThreeWheelIMUConstants localizerConstants = new ThreeWheelIMUConstants()
-            .forwardTicksToInches(0.001985)
-            .strafeTicksToInches(0.001987)
-            .turnTicksToInches(0.001965)
-            .leftPodY(4.25)
-            .rightPodY(-4.25)
-            .strafePodX(0)
-            .leftEncoder_HardwareMapName("leftFront")
-            .rightEncoder_HardwareMapName("rightRear")
-            .strafeEncoder_HardwareMapName("rightFront")
-            .leftEncoderDirection(Encoder.FORWARD)
-            .rightEncoderDirection(Encoder.FORWARD)
-            .strafeEncoderDirection(Encoder.REVERSE)
-            .IMU_HardwareMapName("imu")
-            .IMU_Orientation(new RevHubOrientationOnRobot(
-                    RevHubOrientationOnRobot.LogoFacingDirection.LEFT,
-                    RevHubOrientationOnRobot.UsbFacingDirection.UP));
+    public static PinpointConstants localizerConstants = new PinpointConstants()
+            .forwardPodY(1.875)
+            .strafePodX(-1.5)
+            .hardwareMapName("pinpoint")
+            .distanceUnit(DistanceUnit.INCH)
+            .encoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD)
+            .forwardEncoderDirection(GoBildaPinpointDriver.EncoderDirection.REVERSED)
+            .strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD);
 
-    // -------------------- Alliance offsets (field-centric) --------------------
-    public static final double ALLIANCE_OFFSET_BLUE = Math.toRadians(180.0);
-    public static final double ALLIANCE_OFFSET_RED  = Math.toRadians(0.0);
 
-    // -------------------- Common max-power presets (used in Auto) --------------------
-    public static final double DEFAULT_MAX_POWER = 1.0;   // fast travel
-    public static final double DRIVE_MAX_POWER   = 0.50;  // controlled approach / scoring
-    public static final double PICKUP_MAX_POWER  = 0.15;  // slow intake sweep
 
-    // -------------------- Auto → TeleOp pose handoff --------------------
-    /** Set by Auto at the end so TeleOp can start from the true end pose. */
-    public static Pose lastAutoEndPose = null;
-
-    /** A sensible TeleOp fallback if Auto didn’t set a pose (e.g., skipped or stopped early). */
-    public static final Pose DEFAULT_TELE_START_BLUE = new Pose(62, 33, Math.toRadians(180));
-    public static final Pose DEFAULT_TELE_START_RED  = new Pose(62, 33, Math.toRadians(0));
-
-    /**
-     * Convenience: in TeleOp.init(), call:
-     * {@code Constants.applyTeleStartPose(follower, Constants.DEFAULT_TELE_START_BLUE);}
-     * or RED variant as needed.
-     */
-    public static void applyTeleStartPose(Follower follower, Pose fallback) {
-        Pose start = (lastAutoEndPose != null) ? lastAutoEndPose : fallback;
-        if (start != null && follower != null) {
-            follower.setStartingPose(start);
-        }
-    }
-
-    // -------------------- Follower factory --------------------
     public static Follower createFollower(HardwareMap hardwareMap){
         return new FollowerBuilder(followerConstants, hardwareMap)
-                .threeWheelIMULocalizer(localizerConstants)
+                .pinpointLocalizer(localizerConstants)
                 .pathConstraints(pathConstraints)
                 .mecanumDrivetrain(driveConstants)
                 .build();
