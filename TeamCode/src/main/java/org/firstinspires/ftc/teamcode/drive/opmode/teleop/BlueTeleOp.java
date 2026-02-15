@@ -211,6 +211,15 @@ public class BlueTeleOp extends OpMode {
             } else {
                 radialVelocityIps = 0.0;
             }
+
+            follower.setTeleOpDrive(
+                    -gamepad1.left_stick_y,
+                    -gamepad1.left_stick_x,
+                    -gamepad1.right_stick_x,
+                    false,
+                    offset
+            );
+            wasLocked = false;
         }
         lastPose = currentPose;
         lastPoseTimeSec = nowSec;
